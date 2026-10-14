@@ -1242,8 +1242,11 @@ const Editor = {
         for (const s of segs) len += Math.hypot(s.q.x - s.p.x, s.q.y - s.p.y);
         for (const s of segs) {
           for (const o of pool) {
-            if (o.net === net) continue;
-            if (this.overlapLen(s, o) > 6) { bad++; break; }
+            const L = this.overlapLen(s, o);
+            if (L <= 6) continue;
+            // 同网分叉允许钉根部 ≤24px 短共干（读作焊点），异网无豁免
+            if (o.net === net && L <= 24) continue;
+            bad++; break;
           }
           // 同网分叉不判重叠（共干豁免），但交叉与贴近照样摊开
           for (const o of pool) {
@@ -1310,7 +1313,6 @@ const Editor = {
       }
     };
     for (const s of poolSegs) {
-      if (s.net === net) continue;
       const steps = Math.ceil(Math.hypot(s.q.x - s.p.x, s.q.y - s.p.y) / (P / 2)) || 1;
       for (let i = 0; i <= steps; i++) {
         const [cx, cy] = toC(s.p.x + (s.q.x - s.p.x) * i / steps, s.p.y + (s.q.y - s.p.y) * i / steps);
@@ -1420,8 +1422,10 @@ const Editor = {
     const seen = new Set();
     for (let i = 0; i < segs.length; i++) for (let j = i + 1; j < segs.length; j++) {
       const s = segs[i], t = segs[j];
-      if (s.net === t.net || s.wid === t.wid) continue;
-      if (this.overlapLen(s, t) <= 6) continue;
+      if (s.wid === t.wid) continue;
+      const L = this.overlapLen(s, t);
+      if (L <= 6) continue;
+      if (s.net === t.net && L <= 24) continue;
       let at = null;
       if (Math.abs(s.p.y - s.q.y) < 0.5) {
         const lo = Math.max(Math.min(s.p.x, s.q.x), Math.min(t.p.x, t.q.x));
