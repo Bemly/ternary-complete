@@ -60,14 +60,14 @@ const Editor = {
       if (n) { n.val = n.val === -1 ? 0 : n.val === 0 ? 1 : -1; this.refresh(); }
     };
 
-    // 导线：单击选中 / 双击加节点
+    // 导线：单击选中 / 双击加节点（选中只换 class 不重建 SVG，否则两次点击落在不同 DOM 节点上、dblclick 永不触发）
     this.elWires.addEventListener('click', (e) => {
       const g = e.target.closest('[data-wid]');
       if (this.suppressClick) return;
       if (g && !e.target.closest('[data-wp]')) {
         this.selected = []; this.selectedWp = null;
         this.selectedWire = Number(g.dataset.wid);
-        this.refresh();
+        this.markSelection();
       }
     });
     this.elWires.addEventListener('dblclick', (e) => {
@@ -91,7 +91,9 @@ const Editor = {
         this.pushHistory();
         const w = this.circuit.wires.find(x => x.wid === Number(wp.dataset.wid));
         if (w) w.pts.splice(Number(wp.dataset.idx), 1);
-        this.selectedWp = null; this.refresh(); return;
+        this.selectedWp = null; this.refresh();
+        this.toast('已删除导线节点（右键点导线本体删除整根线）');
+        return;
       }
       const g = e.target.closest && e.target.closest('[data-wid]');
       if (g) {
@@ -267,6 +269,28 @@ const Editor = {
 
   nodeById(nid) { return this.circuit.nodes.find(n => n.nid === nid); },
   clearSelection() { this.selected = []; this.selectedWire = null; this.selectedWp = null; },
+  updateSelInfo() {
+    const selEl = document.getElementById('sel-info');
+    if (selEl) {
+      selEl.textContent =
+        this.selectedWp ? '选中：导线节点' :
+        this.selectedWire != null ? '选中：导线' :
+        this.selected.length ? `选中 ${this.selected.length} 个` : '未选中';
+    }
+  },
+  // 轻量选中：只切换高亮类，不重建 DOM（保 dblclick 可用）
+  markSelection() {
+    this.elWires.querySelectorAll('path.wire').forEach(p => {
+      p.classList.toggle('sel', Number(p.dataset.wid) === this.selectedWire);
+    });
+    this.elWires.querySelectorAll('rect.wp').forEach(r => {
+      r.classList.toggle('sel', !!(this.selectedWp && Number(r.dataset.wid) === this.selectedWp.wid && Number(r.dataset.idx) === this.selectedWp.idx));
+    });
+    this.elBoard.querySelectorAll('.node').forEach(el => {
+      el.classList.toggle('sel', this.selected.includes(Number(el.dataset.nid)));
+    });
+    this.updateSelInfo();
+  },
   selectAll() {
     if (!this.circuit) return;
     this.selected = this.circuit.nodes.filter(n => n.type !== 'INPUT' && n.type !== 'OUTPUT').map(n => n.nid);
@@ -578,13 +602,7 @@ const Editor = {
     this.renderIoPanel();
     const gates = this.circuit.nodes.filter(n => n.type !== 'INPUT' && n.type !== 'OUTPUT').length;
     document.getElementById('stat-gates').textContent = gates;
-    const selEl = document.getElementById('sel-info');
-    if (selEl) {
-      selEl.textContent =
-        this.selectedWp ? '选中：导线节点' :
-        this.selectedWire != null ? '选中：导线' :
-        this.selected.length ? `选中 ${this.selected.length} 个` : '未选中';
-    }
+    this.updateSelInfo();
     document.getElementById('sim-state').textContent =
       unstable ? '⚠ 组合环' :
       floating ? `● 运行中 · ${floating}悬空` : '● 运行中 ✓';

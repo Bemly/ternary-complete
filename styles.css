@@ -104,7 +104,9 @@ html,body{margin:0;padding:0;background:var(--bg);color:var(--txt);font-family:'
 #wires path.wire{stroke-width:3.5;fill:none;stroke-linecap:round;stroke-linejoin:round}
 #wires path.halo{stroke-width:8;fill:none;stroke-linecap:round;stroke-linejoin:round;opacity:.14}
 #wires path.hit{stroke:transparent;fill:none;stroke-width:16;cursor:pointer}
-#board{position:absolute;inset:0;z-index:2}
+#board{position:absolute;inset:0;z-index:2;pointer-events:none}
+#board .node{pointer-events:auto}
+#select-box{pointer-events:none}
 #board-hint{position:absolute;bottom:10px;left:50%;transform:translateX(-50%);font-size:11.5px;color:var(--dim);background:rgba(10,12,16,.88);padding:5px 14px;border-radius:16px;border:1px solid var(--line2);white-space:nowrap;z-index:5;pointer-events:none}
 #board-hint b{color:var(--amber)}
 .tri-legend{position:absolute;top:10px;right:12px;z-index:5;display:flex;gap:5px;background:rgba(10,12,16,.85);border:1px solid var(--line2);border-radius:14px;padding:4px 8px}
