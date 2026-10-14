@@ -7,6 +7,7 @@
  * - 空白处拖拽：框选（Shift 加选）；单击空白：取消选择；拖动元件：多选一起搬（22px 网格吸附）
  * - 空格/中键/右键拖拽：平移画布；滚轮：以光标为中心缩放
  * - Delete：删除选中；Ctrl+Z / Ctrl+Y（Shift+Z）：撤销/重做；Ctrl+C/V：复制粘贴；Ctrl+A：全选
+ * - 重叠回滚：任何编辑手势收尾若新增导线重叠，自动 undo 回到上一步并清空 redo
  */
 'use strict';
 
@@ -197,6 +198,31 @@ const Editor = {
     this.undoStack.push(this.snapshot());
     this.restoreSnapshot(this.redoStack.pop());
   },
+  overlapCount() {
+    try { return this.findOverlaps().length; } catch { return 0; }
+  },
+  // 重叠回滚：手势收尾时若新增重叠，丢弃本次改动回到上一步（redo 一并清空，不可重做回重叠态）
+  revertIfOverlap(before) {
+    let after = 0;
+    try { after = this.findOverlaps().length; } catch { return false; }
+    if (after > before) {
+      const snap = this.undoStack.pop();
+      if (snap !== undefined) {
+        try { this.restoreSnapshot(snap); }
+        catch {
+          try {
+            const o = JSON.parse(snap);
+            this.circuit = { nodes: o.nodes, wires: o.wires };
+            this.nidSeq = o.nidSeq; this.widSeq = o.widSeq;
+          } catch {}
+        }
+        this.redoStack = [];
+        try { this.toast(t('overlapRevert')); } catch {}
+        return true;
+      }
+    }
+    return false;
+  },
 
   toast(msg) {
     const t = document.getElementById('toast');
@@ -355,6 +381,7 @@ const Editor = {
   },
   pasteSel() {
     if (!this.circuit || !this.clipboard) return;
+    const before = this.overlapCount();
     this.pushHistory();
     const w0 = this.toWorld(
       this.elWrap.getBoundingClientRect().left + this.elWrap.clientWidth / 2,
@@ -379,7 +406,7 @@ const Editor = {
       });
     }
     this.selected = fresh; this.selectedWire = null;
-    this.refresh();
+    if (!this.revertIfOverlap(before)) this.refresh();
   },
 
   // 求值（组合不动点；DFF/REG1 经 state 跨滴答）
@@ -804,9 +831,9 @@ const Editor = {
       (d.inputs || []).forEach((p, i) => el.appendChild(this.pinEl(n, p, 'in', true, { x: s.inA[i].x, y: s.inA[i].y + PT })));
       (d.outputs || []).forEach((p, i) => el.appendChild(this.pinEl(n, p, 'out', true, { x: s.outA[i].x, y: s.outA[i].y + PT })));
     }
-    // 拖动（多选联动，8px 吸附）
+    // 拖动（多选联动，网格吸附；收尾新增重叠则回滚）
     const snap = snapG;
-    let sx = 0, sy = 0, startPos = null, dragging = false, moved = false, histPushed = false;
+    let sx = 0, sy = 0, startPos = null, dragging = false, moved = false, histPushed = false, beforeOv = 0;
     el.addEventListener('pointerdown', (e) => {
       if (e.target.closest('.pin') || e.button !== 0) return;
       if (e.shiftKey) {
@@ -819,6 +846,7 @@ const Editor = {
       }
       dragging = true; moved = false; histPushed = false;
       sx = e.clientX; sy = e.clientY;
+      try { beforeOv = this.findOverlaps().length; } catch { beforeOv = 0; }
       startPos = new Map(this.selected.map(id => { const m = this.nodeById(id); return [id, { x: m.x, y: m.y }]; }));
       try { el.setPointerCapture(e.pointerId); } catch {}
     });
@@ -847,7 +875,7 @@ const Editor = {
         this.selected = [n.nid]; this.selectedWire = null;
         if (n.type === 'INPUT') { n.val = n.val === -1 ? 0 : n.val === 0 ? 1 : -1; }
         this.refresh();
-      } else this.refresh();
+      } else if (!this.revertIfOverlap(beforeOv)) this.refresh();
     });
     this.elBoard.appendChild(el);
   },
@@ -889,9 +917,10 @@ const Editor = {
       this.toast(t('tInUse')); this.refresh(); return;
     }
     if (from.nid === nid) { this.toast(t('tNoSelf')); this.refresh(); return; }
+    const before = this.overlapCount();
     this.pushHistory();
     this.circuit.wires.push({ wid: this.widSeq++, from: { ...from }, to: { nid, pin }, pts: [] });
-    this.refresh();
+    if (!this.revertIfOverlap(before)) this.refresh();
   },
 
   addWaypoint(wid, pt) {
@@ -907,11 +936,12 @@ const Editor = {
       const d = this.segDist(pt, poly[i], poly[i + 1]);
       if (d < bd) { bd = d; best = i; }
     }
+    const before = this.overlapCount();
     this.pushHistory();
     w.pts.splice(best, 0, { x: snapG(pt.x), y: snapG(pt.y) });
     this.selectedWp = { wid, idx: best };
     this.selectedWire = null;
-    this.refresh();
+    if (!this.revertIfOverlap(before)) this.refresh();
   },
   segDist(p, a, b) {
     const dx = b.x - a.x, dy = b.y - a.y;
@@ -924,6 +954,7 @@ const Editor = {
     const w = this.circuit.wires.find(x => x.wid === wid);
     if (!w || !w.pts[idx]) return;
     e.stopPropagation();
+    const before = this.overlapCount();
     this.pushHistory();
     this.selectedWp = { wid, idx }; this.selectedWire = null;
     const move = (ev) => {
@@ -934,7 +965,7 @@ const Editor = {
     const up = () => {
       window.removeEventListener('pointermove', move);
       window.removeEventListener('pointerup', up);
-      this.refresh();
+      if (!this.revertIfOverlap(before)) this.refresh();
     };
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', up);
@@ -943,6 +974,7 @@ const Editor = {
   bendWireAt(wid, e) {
     const w = this.circuit.wires.find(x => x.wid === wid);
     if (!w) return;
+    const before = this.overlapCount();
     if (!Array.isArray(w.pts)) w.pts = [];
     const a = this.wirePoint(w.from.nid, w.from.pin, 'out');
     const b = this.wirePoint(w.to.nid, w.to.pin, 'in');
@@ -975,7 +1007,7 @@ const Editor = {
     const up = () => {
       window.removeEventListener('pointermove', move);
       window.removeEventListener('pointerup', up);
-      if (moved) this.refresh();
+      if (moved && !this.revertIfOverlap(before)) this.refresh();
       // 未拖动：放手，后续 click 事件走选中逻辑
     };
     window.addEventListener('pointermove', move);
