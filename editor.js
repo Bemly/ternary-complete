@@ -651,13 +651,34 @@ const Editor = {
         outA: [{ x: outX, y: 28 }],
       };
     }
-    // MUX：梯形
+    // MUX：梯形 + 内部汇流线（三路并一路）
     if (type === 'MUX') {
       return {
         w: 84, h: 72,
-        svg: `<polygon class="bd" points="12,6 62,14 62,58 12,66" style="${ST}"/>`,
+        svg: `<polygon class="bd" points="12,6 62,14 62,58 12,66" style="${ST}"/>` +
+          `<path d="M38 29 L47 36 L38 43 M47 36 L53 36" stroke="#55617a" stroke-width="1.4" fill="none"/>`,
         inA: spread(4, 18, 57).map(y => ({ x: 12, y })),
         outA: [{ x: 62, y: 36 }],
+      };
+    }
+    // CMP：比较器三角 + =?
+    if (type === 'CMP') {
+      return {
+        w: 76, h: 64,
+        svg: `<path class="bd" d="M14 8 L60 32 L14 56 Z" style="${ST}"/>` +
+          `<text x="33" y="37" style="${TXT}" font-size="12">= ?</text>`,
+        inA: spread(2, 22, 42).map(y => ({ x: 14, y })),
+        outA: [{ x: 60, y: 32 }],
+      };
+    }
+    // DEC：扩口梯形（一路扇出三路）+ 扇形线
+    if (type === 'DEC') {
+      return {
+        w: 66, h: 84,
+        svg: `<polygon class="bd" points="14,26 54,6 54,78 14,58" style="${ST}"/>` +
+          `<path d="M30 42 L44 22 M30 42 L44 42 M30 42 L44 62" stroke="#55617a" stroke-width="1.4" fill="none"/>`,
+        inA: [{ x: 14, y: 42 }],
+        outA: spread(3, 20, 64).map(y => ({ x: 54, y })),
       };
     }
     // 常量：圆形端子
@@ -670,7 +691,52 @@ const Editor = {
         outA: [{ x: 46, y: 28 }],
       };
     }
-    // 其余复合块：矩形（仿图灵完备自定义元件），名印当中
+    // 算术块：八角形 + 求和 glyph（HADD Σ / FADD Σ+ / ADD2 Σ2 / SUB2 Σ−）
+    if (['HADD', 'FADD', 'ADD2', 'SUB2'].includes(type)) {
+      const d = COMP_DEFS[type];
+      const ni = d.inputs.length, no = d.outputs.length;
+      const H = Math.max(64, Math.max(ni, no) * 20 + 24);
+      const c = 12;
+      const glyph = { HADD: 'Σ', FADD: 'Σ+', ADD2: 'Σ2', SUB2: 'Σ−' }[type];
+      return {
+        w: 120, h: H,
+        svg: `<polygon class="bd" points="${10 + c},6 ${110 - c},6 110,${6 + c} 110,${H - 6 - c} ${110 - c},${H - 6} ${10 + c},${H - 6} 10,${H - 6 - c} 10,${6 + c}" style="${ST}"/>` +
+          `<text x="62" y="${H / 2 + 7}" style="${TXT}" font-size="17">${glyph}</text>`,
+        inA: spread(ni, 24, H - 24).map(y => ({ x: 10, y })),
+        outA: spread(no, 24, H - 24).map(y => ({ x: 110, y })),
+      };
+    }
+    // 时序块：双线框 + 数据流 glyph（DFF：D→Q / REG：EN 门控 D→Q）
+    if (['DFF', 'REG1'].includes(type)) {
+      const d = COMP_DEFS[type];
+      const ni = d.inputs.length, no = d.outputs.length;
+      const H = Math.max(56, Math.max(ni, no) * 20 + 24);
+      const glyph = type === 'DFF'
+        ? `<text x="60" y="${H / 2 + 4}" style="${TXT}" font-size="12">D→Q</text>`
+        : `<text x="60" y="${H / 2 - 6}" style="${TXT}" font-size="9">EN</text>` +
+          `<text x="60" y="${H / 2 + 9}" style="${TXT}" font-size="12">D→Q</text>`;
+      return {
+        w: 120, h: H,
+        svg: `<rect class="bd" x="10" y="6" width="100" height="${H - 12}" style="${ST}"/>` +
+          `<rect x="15" y="11" width="90" height="${H - 22}" stroke="#4a5468" stroke-width="1" fill="none"/>` +
+          glyph,
+        inA: spread(ni, 24, H - 24).map(y => ({ x: 10, y })),
+        outA: spread(no, 24, H - 24).map(y => ({ x: 110, y })),
+      };
+    }
+    // ALU：高梯形 + 运算 glyph
+    if (type === 'ALU1') {
+      const d = COMP_DEFS[type];
+      const ni = d.inputs.length, no = d.outputs.length;
+      const H = Math.max(84, Math.max(ni, no) * 20 + 24);
+      return {
+        w: 120, h: H,
+        svg: `<polygon class="bd" points="12,6 66,14 66,${H - 14} 12,${H - 6}" style="${ST}"/>`,
+        inA: spread(ni, 26, H - 26).map(y => ({ x: 12, y })),
+        outA: spread(no, 26, H - 26).map(y => ({ x: 66, y })),
+      };
+    }
+    // 兜底：矩形块
     const d = COMP_DEFS[type];
     const ni = d.inputs.length, no = d.outputs.length;
     const H = Math.max(56, Math.max(ni, no) * 20 + 24);
@@ -722,7 +788,7 @@ const Editor = {
       el.className = 'node gate';
       el.dataset.nid = n.nid;
       el.style.width = s.w + 'px';
-      el.innerHTML = `<div class="ntag" title="${compName(n.type)} ${d.en}">${compName(n.type)}</div><div class="nval val">…</div>` +
+      el.innerHTML = `<div class="nhead"><span class="ntag" title="${compName(n.type)} ${d.en}">${compName(n.type)}</span><span class="nval val">…</span></div>` +
         `<svg width="${s.w}" height="${s.h}" viewBox="0 0 ${s.w} ${s.h}">${s.svg}</svg>`;
       const PT = 24; // 名牌条高度，钉坐标整体下移
       (d.inputs || []).forEach((p, i) => el.appendChild(this.pinEl(n, p, 'in', true, { x: s.inA[i].x, y: s.inA[i].y + PT })));
