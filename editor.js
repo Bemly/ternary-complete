@@ -614,7 +614,7 @@ const Editor = {
       });
     }
     this.applyView();
-    this.drawWires(vals);
+    this.drawWires(vals, this.planAllRoutes());
     this.renderIoPanel();
     const gates = this.circuit.nodes.filter(n => n.type !== 'INPUT' && n.type !== 'OUTPUT').length;
     document.getElementById('stat-gates').textContent = gates;
@@ -1092,6 +1092,34 @@ const Editor = {
     }
     return 0;
   },
+  // 两段轴对齐线段是否构成真正的交叉（垂直相交于内部，端点相接不算）
+  segCross(s, t) {
+    const EPS = 0.5;
+    const sH = Math.abs(s.p.y - s.q.y) < EPS, tH = Math.abs(t.p.y - t.q.y) < EPS;
+    if (sH === tH) return false;
+    const h = sH ? s : t, v = sH ? t : s;
+    const hx1 = Math.min(h.p.x, h.q.x), hx2 = Math.max(h.p.x, h.q.x);
+    const vy1 = Math.min(v.p.y, v.q.y), vy2 = Math.max(v.p.y, v.q.y);
+    return v.p.x > hx1 + EPS && v.p.x < hx2 - EPS && h.p.y > vy1 + EPS && h.p.y < vy2 - EPS;
+  },
+  // 两段平行线的间距（不平行或投影不交叠返回 Infinity）
+  segGap(s, t) {
+    const EPS = 0.5;
+    const sH = Math.abs(s.p.y - s.q.y) < EPS, tH = Math.abs(t.p.y - t.q.y) < EPS;
+    if (sH && tH) {
+      const lo = Math.max(Math.min(s.p.x, s.q.x), Math.min(t.p.x, t.q.x));
+      const hi = Math.min(Math.max(s.p.x, s.q.x), Math.max(t.p.x, t.q.x));
+      if (hi - lo <= 0) return Infinity;
+      return Math.abs(s.p.y - t.p.y);
+    }
+    if (!sH && !tH) {
+      const lo = Math.max(Math.min(s.p.y, s.q.y), Math.min(t.p.y, t.q.y));
+      const hi = Math.min(Math.max(s.p.y, s.q.y), Math.max(t.p.y, t.q.y));
+      if (hi - lo <= 0) return Infinity;
+      return Math.abs(s.p.x - t.p.x);
+    }
+    return Infinity;
+  },
   wireSegsOf(w, pts) {
     const segs = [];
     for (let i = 0; i < pts.length - 1; i++) {
@@ -1164,17 +1192,21 @@ const Editor = {
         { pts: [{ x: A.x, y: A.y }, { x: A.x, y: B.y }, { x: B.x, y: B.y }], pen: 1 },
       ];
       const laneSet = new Set();
+      const nearPin = (v) => Math.min(Math.abs(v - A.x), Math.abs(v - B.x)) < 8;
       const addLane = (L, basePen) => {
         L = Math.round(L);
-        if (laneSet.has(L)) return;
+        if (laneSet.has(L) || nearPin(L)) return;
+        if (laneSet.size > 48) return;
         laneSet.add(L);
         const dist = Math.min(Math.abs(L - midX), Math.abs(L - A.x), Math.abs(L - B.x));
         cands.push({ pts: [{ x: A.x, y: A.y }, { x: L, y: A.y }, { x: L, y: B.y }, { x: B.x, y: B.y }], pen: basePen + dist / GRID });
       };
       const laneSetV = new Set();
+      const nearPinV = (v) => Math.min(Math.abs(v - A.y), Math.abs(v - B.y)) < 8;
       const addLaneV = (M, basePen) => {
         M = Math.round(M);
-        if (laneSetV.has(M)) return;
+        if (laneSetV.has(M) || nearPinV(M)) return;
+        if (laneSetV.size > 48) return;
         laneSetV.add(M);
         const dist = Math.min(Math.abs(M - midY), Math.abs(M - A.y), Math.abs(M - B.y));
         cands.push({ pts: [{ x: A.x, y: A.y }, { x: A.x, y: M }, { x: B.x, y: M }, { x: B.x, y: B.y }], pen: basePen + dist / GRID });
@@ -1183,6 +1215,13 @@ const Editor = {
       for (const k of [1, 2, 3]) { addLane(A.x + k * GRID, 2); addLane(A.x - k * GRID, 2); addLane(B.x + k * GRID, 2); addLane(B.x - k * GRID, 2); }
       for (const k of [1, -1, 2, -2, 3, -3]) addLaneV(midY + k * GRID, 2);
       for (const k of [1, 2, 3]) { addLaneV(A.y + k * GRID, 2); addLaneV(A.y - k * GRID, 2); addLaneV(B.y + k * GRID, 2); addLaneV(B.y - k * GRID, 2); }
+      // 障碍边走道：绕行通常贴着障碍边，与 A-B 包络相交的障碍各贡献四条边走道
+      const bb = { l: Math.min(A.x, B.x) - 88, t: Math.min(A.y, B.y) - 88, r: Math.max(A.x, B.x) + 88, b: Math.max(A.y, B.y) + 88 };
+      for (const r of obs) {
+        if (r.r < bb.l || r.l > bb.r || r.b < bb.t || r.t > bb.b) continue;
+        addLane(r.l - 12, 3); addLane(r.r + 12, 3);
+        addLaneV(r.t - 12, 3); addLaneV(r.b + 12, 3);
+      }
       // 外环总线：实在没道就从所有障碍的外面绕（上下左右各一条）
       let minL = Infinity, minT = Infinity, maxR = -Infinity, maxB = -Infinity;
       for (const [, r] of boxes) {
@@ -1196,19 +1235,30 @@ const Editor = {
         cands.push({ pts: [{ x: A.x, y: A.y }, { x: L, y: A.y }, { x: L, y: B.y }, { x: B.x, y: B.y }], pen: 8 });
         cands.push({ pts: [{ x: A.x, y: A.y }, { x: R, y: A.y }, { x: R, y: B.y }, { x: B.x, y: B.y }], pen: 8 });
       }
+      const W8 = this.routeW || (this.routeW = { bad: 1000, body: 150, xing: 30, sep: 8 });
       let best = cands[0], bestScore = Infinity;
       for (const c of cands) {
-        let bad = 0, cross = 0;
-        for (const s of this.wireSegsOf(w, c.pts)) {
+        let bad = 0, crossBody = 0, xing = 0, sep = 0, len = 0;
+        const segs = this.wireSegsOf(w, c.pts);
+        for (const s of segs) len += Math.hypot(s.q.x - s.p.x, s.q.y - s.p.y);
+        for (const s of segs) {
           for (const o of pool) {
             if (o.net === net) continue;
             if (this.overlapLen(s, o) > 6) { bad++; break; }
           }
-          if (!bad) for (const r of obs) {
-            if (this.segHitsBox(s, r)) { cross++; break; }
+          for (const o of pool) {
+            if (o.net === net) continue;
+            if (this.segCross(s, o)) { xing++; break; }
+          }
+          for (const o of pool) {
+            if (o.net === net) continue;
+            if (this.segGap(s, o) < 12) { sep++; break; }
+          }
+          for (const r of obs) {
+            if (this.segHitsBox(s, r)) { crossBody++; break; }
           }
         }
-        const score = bad * 1000 + cross * 150 + c.pen;
+        const score = bad * W8.bad + crossBody * W8.body + len / 40 + segs.length * 2 + xing * W8.xing + sep * W8.sep + c.pen;
         if (score < bestScore) { bestScore = score; best = c; }
       }
       plan.set(w.wid, best.pts);
@@ -1218,9 +1268,9 @@ const Editor = {
   },
   // 重叠检测：不同信号网的导线只允许交叉穿过，不允许共线重叠（>6px 才算）。
   // 同一输出钉分叉出去的算同一信号网，不拦。返回 [{a, b, at}]（线 wid 对）。
-  findOverlaps() {
+  findOverlaps(plan) {
     if (!this.circuit) return [];
-    const plan = this.planAllRoutes();
+    if (!plan) plan = this.planAllRoutes();
     const segs = [];
     for (const w of this.circuit.wires) {
       if (!plan.has(w.wid)) continue;
@@ -1266,19 +1316,19 @@ const Editor = {
     return bad;
   },
 
-  drawWires(vals) {
+  drawWires(vals, plan) {
     const svg = this.elWires;
     svg.innerHTML = '';
     if (!this.circuit) return;
     if (!vals) vals = this.evaluate().vals;
+    if (!plan) plan = this.planAllRoutes();
     const NS = 'http://www.w3.org/2000/svg';
     const colorOf = v => (v === 1 ? '#ffa726' : v === -1 ? '#4fc3f7' : v === 0 ? '#9aa0b0' : '#3a4356');
     const badSet = new Set();
-    const badPairs = this.findOverlaps();
+    const badPairs = this.findOverlaps(plan);
     for (const o of badPairs) { badSet.add(o.a); badSet.add(o.b); }
     this._badWires = badSet;
     this._badCount = badPairs.length;
-    const plan = this.planAllRoutes();
     for (const w of this.circuit.wires) {
       const a = this.wirePoint(w.from.nid, w.from.pin, 'out');
       const b = this.wirePoint(w.to.nid, w.to.pin, 'in');
