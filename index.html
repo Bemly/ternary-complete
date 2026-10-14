@@ -14,7 +14,7 @@
 <!-- 顶栏：细长工具条 -->
 <header id="topbar">
   <div class="tb-left">
-    <button id="btn-map" class="tb-btn"><svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="square" stroke-linejoin="miter" aria-hidden="true"><path d="M1.5 4 L6 2 L10 4 L14.5 2 V12 L10 14 L6 12 L1.5 14 Z M6 2 V12 M10 4 V14"/></svg> 路线图</button>
+    <button id="btn-map" class="tb-btn"><svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="square" stroke-linejoin="miter" aria-hidden="true"><path d="M1.5 4 L6 2 L10 4 L14.5 2 V12 L10 14 L6 12 L1.5 14 Z M6 2 V12 M10 4 V14"/></svg> <span data-i18n="navMap">路线图</span></button>
     <div class="brand-mini">
       <span id="scale-mini"><i class="pm l">−</i><i class="pv">◆</i><i class="pm r">+</i></span>
       <b>三进制完备 <span class="en">TERNARY COMPLETE</span></b>
@@ -22,11 +22,12 @@
   </div>
   <div id="crumb" class="tb-crumb"><span id="level-kicker">路线图</span><span id="level-name-top">选择一个任务进入布线台</span></div>
   <div class="tb-right">
-    <div class="stat"><b id="stat-progress">0/18</b><span>已完成</span></div>
-    <div class="stat"><b id="stat-gates">0</b><span>门数</span></div>
-    <button id="btn-converter" class="ghost-btn">⇄ 换算</button>
+    <div class="stat"><b id="stat-progress">0/18</b><span data-i18n="done">已完成</span></div>
+    <div class="stat"><b id="stat-gates">0</b><span data-i18n="gatesW">门数</span></div>
+    <button id="btn-converter" class="ghost-btn">⇄ <span data-i18n="converter">换算</span></button>
     <button id="btn-help" class="ghost-btn">？</button>
-    <button id="btn-reset" class="ghost-btn danger">重置</button>
+    <button id="btn-lang" class="ghost-btn" title="Switch language">EN</button>
+    <button id="btn-reset" class="ghost-btn danger"><span data-i18n="reset">重置</span></button>
   </div>
 </header>
 
@@ -34,35 +35,35 @@
 <section id="map-view">
   <div class="map-head">
     <div>
-      <h2>任务路线 <span class="sub">从一个门到一台三进制计算机 · 致敬 Сетунь Setun (1958)</span></h2>
-      <p class="dim">点任意已解锁节点进入布线台。通关后电路会变成标准件，用于下一关，和《图灵完备》一样的推进方式。</p>
+      <h2><span data-i18n="mapTitle">任务路线</span> <span class="sub" data-i18n="mapSub">从一个门到一台三进制计算机 · 致敬 Сетунь Setun (1958)</span></h2>
+      <p class="dim" data-i18n="mapDesc">点任意已解锁节点进入布线台。通关后电路会变成标准件，用于下一关，和《图灵完备》一样的推进方式。</p>
     </div>
     <div class="legend">
-      <div><i class="dot done"></i>已通过</div>
-      <div><i class="dot cur"></i>当前位置</div>
-      <div><i class="dot lock"></i>未解锁</div>
+      <div><i class="dot done"></i><span data-i18n="legDone">已通过</span></div>
+      <div><i class="dot cur"></i><span data-i18n="legCur">当前位置</span></div>
+      <div><i class="dot lock"></i><span data-i18n="legLock">未解锁</span></div>
       <button id="btn-dev" class="ghost-btn" title="开发者模式：解锁全部关卡"><svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="square" aria-hidden="true"><rect x="3.5" y="7" width="9" height="7"/><path d="M5.5 7 V5 A2.5 2.5 0 0 1 10.4 5.4 M10.4 5.4 V6.6"/></svg> 开发者模式：关</button>
     </div>
   </div>
   <div id="level-tree"></div>
   <div class="setun-note">
-    <b>为什么是三进制？</b>
-    <p>单个与非门在二进制里是完备的，在三值逻辑里<strong>不是</strong>。平衡三进制需要<strong>阈值门 NTI / PTI</strong>才能表达全部函数，这正是苏联 Setun 用阈值逻辑的原因，也是第一章要亲手验证的事。</p>
+    <b data-i18n="setunB">为什么是三进制？</b>
+    <p data-i18n="setunP">单个与非门在二进制里是完备的，在三值逻辑里<strong>不是</strong>。平衡三进制需要<strong>阈值门 NTI / PTI</strong>才能表达全部函数，这正是苏联 Setun 用阈值逻辑的原因，也是第一章要亲手验证的事。</p>
   </div>
 </section>
 
 <!-- 视图二：布线台（全屏） -->
 <section id="game-view" hidden>
   <div id="game-toolbar">
-    <button id="btn-back" class="tb-btn">‹ 返回路线图</button>
+    <button id="btn-back" class="tb-btn">‹ <span data-i18n="back">返回路线图</span></button>
     <div class="lv-info">
       <div id="level-kicker2">第 0 章</div>
       <div id="level-name">初见三元</div>
     </div>
     <p id="level-desc"></p>
     <div class="lv-actions">
-      <button id="btn-tick" class="act-btn" title="时钟滴答：推进所有触发器"><svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="square" aria-hidden="true"><circle cx="8" cy="9" r="5.2"/><path d="M8 5.8 V9 L10.5 10.2 M5.5 1 H10.5"/></svg> 滴答</button>
-      <button id="btn-auto" class="act-btn" title="自动时钟"><svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="square" aria-hidden="true"><path d="M4 2 L13 8 L4 14 Z" fill="currentColor" stroke="none"/></svg> 自动</button>
+      <button id="btn-tick" class="act-btn" title="时钟滴答：推进所有触发器"><svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="square" aria-hidden="true"><circle cx="8" cy="9" r="5.2"/><path d="M8 5.8 V9 L10.5 10.2 M5.5 1 H10.5"/></svg> <span data-i18n="tickBtn">滴答</span></button>
+      <button id="btn-auto" class="act-btn" title="自动时钟"><svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="square" aria-hidden="true"><path d="M4 2 L13 8 L4 14 Z" fill="currentColor" stroke="none"/></svg> <span data-i18n="autoBtn">自动</span></button>
       <select id="tps-sel" title="自动滴答速度（拍/秒）">
         <option value="1">1 TPS</option>
         <option value="2" selected>2 TPS</option>
@@ -70,17 +71,17 @@
         <option value="10">10 TPS</option>
       </select>
       <span id="tick-count" title="时钟已走拍数">T=0</span>
-      <button id="btn-timeline" class="act-btn on" title="显示/隐藏信号时间轴"><svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="square" aria-hidden="true"><path d="M2 2 V14 H14"/><path d="M4.5 11 H7 V6.5 H9.5 V9.5 H12"/></svg> 时间轴</button>
-      <button id="btn-clear" class="act-btn">清空连线</button>
-      <button id="btn-del" class="act-btn danger">删除选中</button>
-      <button id="btn-info" class="act-btn accent"><svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="square" aria-hidden="true"><rect x="4" y="1.5" width="8" height="13"/><path d="M7 1.5 V14.5"/></svg> 说明与提示</button>
-      <button id="btn-run" class="run-btn"><svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="square" aria-hidden="true"><path d="M4 2 L13 8 L4 14 Z" fill="currentColor" stroke="none"/></svg> 运行测试</button>
+      <button id="btn-timeline" class="act-btn on" title="显示/隐藏信号时间轴"><svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="square" aria-hidden="true"><path d="M2 2 V14 H14"/><path d="M4.5 11 H7 V6.5 H9.5 V9.5 H12"/></svg> <span data-i18n="tlBtn">时间轴</span></button>
+      <button id="btn-clear" class="act-btn"><span data-i18n="clearWires">清空连线</span></button>
+      <button id="btn-del" class="act-btn danger"><span data-i18n="delSel">删除选中</span></button>
+      <button id="btn-info" class="act-btn accent"><svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="square" aria-hidden="true"><rect x="4" y="1.5" width="8" height="13"/><path d="M7 1.5 V14.5"/></svg> <span data-i18n="infoBtn">说明与提示</span></button>
+      <button id="btn-run" class="run-btn"><svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="square" aria-hidden="true"><path d="M4 2 L13 8 L4 14 Z" fill="currentColor" stroke="none"/></svg> <span data-i18n="runTests">运行测试</span></button>
     </div>
   </div>
 
   <div id="game-main">
     <aside id="palette-rail">
-      <div class="rail-title">元件</div>
+      <div class="rail-title" data-i18n="paletteT">元件</div>
       <div id="palette"></div>
       <div class="rail-foot">
         <span id="sim-state">就绪</span>
@@ -95,26 +96,26 @@
       </div>
       <div id="select-box" hidden></div>
       <div id="io-panel" title="输入输出总览（点输入切换 −/0/+）"></div>
-      <div id="board-hint">输出钉按住<b>拖到</b>输入钉连线 · 双击导线加节点 · 右键删线 · 空白拖拽框选 · 空格/中键/右键拖拽平移 · 滚轮缩放 · 点输入端切换 −/0/+</div>
+      <div id="board-hint" data-i18n="boardHint">输出钉按住<b>拖到</b>输入钉连线 · 双击导线加节点 · 右键删线 · 空白拖拽框选 · 空格/中键/右键拖拽平移 · 滚轮缩放 · 点输入端切换 −/0/+</div>
       <div class="tri-legend"><i class="t neg">−</i><i class="t zero">0</i><i class="t pos">+</i></div>
     </div>
 
     <div id="cpu-panel" hidden>
       <div class="cpu-cols">
         <div>
-          <div class="panel-title">TRIT-3 汇编器 <span class="sub">3-trit 字 · −13…+13</span></div>
+          <div class="panel-title"><span data-i18n="cpuAsm">TRIT-3 汇编器</span> <span class="sub" data-i18n="cpuSub">3-trit 字 · −13…+13</span></div>
           <textarea id="cpu-code" spellcheck="false"></textarea>
           <div class="cpu-btns">
-            <button id="btn-cpu-run" class="run-btn">运行程序</button>
-            <button id="btn-cpu-step" class="act-btn">单步</button>
-            <button id="btn-cpu-reset" class="act-btn">复位 CPU</button>
+            <button id="btn-cpu-run" class="run-btn"><span data-i18n="cpuRun">运行程序</span></button>
+            <button id="btn-cpu-step" class="act-btn"><span data-i18n="cpuStep">单步</span></button>
+            <button id="btn-cpu-reset" class="act-btn"><span data-i18n="cpuReset">复位 CPU</span></button>
           </div>
         </div>
         <div>
-          <div class="panel-title">CPU 状态</div>
+          <div class="panel-title" data-i18n="cpuStateT">CPU 状态</div>
           <div id="cpu-state"></div>
-          <div class="panel-title" style="margin-top:10px">指令集</div>
-          <pre id="cpu-isa">LIT Rd, 立即数(−13…13, 可写 +0− / 十进制)
+          <div class="panel-title" style="margin-top:10px" data-i18n="isaT">指令集</div>
+          <pre id="cpu-isa" data-i18n="isa">LIT Rd, 立即数(−13…13, 可写 +0− / 十进制)
 ADD Rd,Ra,Rb   MIN Rd,Ra,Rb   MAX Rd,Ra,Rb
 NEG Rd,Ra      MOV Rd,Ra      INP Rd / OUT Ra
 LD Rd,[a]  ST Ra,[a]   (a = 0…8)
@@ -128,8 +129,8 @@ HLT   标签写为  L:  注释用 #</pre>
   <!-- 信号时间轴 -->
   <div id="timeline-strip">
     <div class="tl-head">
-      <span><svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="square" aria-hidden="true"><path d="M2 2 V14 H14"/><path d="M4.5 11 H7 V6.5 H9.5 V9.5 H12"/></svg> 时间轴 <span id="tl-info" class="dim"></span></span>
-      <button id="btn-tl-clear" class="ghost-btn">清空波形</button>
+      <span><svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="square" aria-hidden="true"><path d="M2 2 V14 H14"/><path d="M4.5 11 H7 V6.5 H9.5 V9.5 H12"/></svg> <span data-i18n="tlTitle">时间轴</span> <span id="tl-info" class="dim"></span></span>
+      <button id="btn-tl-clear" class="ghost-btn"><span data-i18n="tlClear">清空波形</span></button>
     </div>
     <div id="timeline"></div>
   </div>
@@ -144,13 +145,13 @@ HLT   标签写为  L:  注释用 #</pre>
     </div>
     <div id="drawer-body" hidden>
       <div class="drawer-cols">
-        <div class="drawer-col"><div class="panel-title">测试用例</div><div id="test-table-wrap"><table id="test-table"></table></div></div>
-        <div class="drawer-col"><div class="panel-title">说明</div><div id="theory"></div>
+        <div class="drawer-col"><div class="panel-title" data-i18n="testsT">测试用例</div><div id="test-table-wrap"><table id="test-table"></table></div></div>
+        <div class="drawer-col"><div class="panel-title" data-i18n="infoT">说明</div><div id="theory"></div>
           <div class="hint-box"><b><svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="square" aria-hidden="true"><circle cx="8" cy="6.5" r="3.6"/><path d="M8 1.2 V2.6 M3.4 3 L4.4 4 M12.6 3 L11.6 4 M6.4 10.2 H9.6 L9.1 12.4 H6.9 Z M7.2 14 H8.8"/></svg> 提示 · </b><span id="level-hint"></span></div>
           <div class="converter-box" id="converter-box" hidden>
-            <b>⇄ 平衡三进制换算</b>
-            <div class="conv-row"><input id="conv-dec" placeholder="十进制，如 11"><button id="conv-d2b">→</button><span id="conv-b-out" class="mono">待换算</span></div>
-            <div class="conv-row"><input id="conv-bal" placeholder="平衡三进制，如 +0−"><button id="conv-b2d">→</button><span id="conv-d-out" class="mono">待换算</span></div>
+            <b data-i18n="convT">⇄ 平衡三进制换算</b>
+            <div class="conv-row"><input id="conv-dec" data-i18n-ph="convDecPh" placeholder="十进制，如 11"><button id="conv-d2b">→</button><span id="conv-b-out" class="mono" data-i18n="convPending">待换算</span></div>
+            <div class="conv-row"><input id="conv-bal" data-i18n-ph="convBalPh" placeholder="平衡三进制，如 +0−"><button id="conv-b2d">→</button><span id="conv-d-out" class="mono" data-i18n="convPending">待换算</span></div>
           </div>
         </div>
       </div>
@@ -161,11 +162,11 @@ HLT   标签写为  L:  注释用 #</pre>
 <!-- 说明弹窗 -->
 <div id="info-modal" hidden>
   <div class="win-card wide">
-    <div class="win-kicker" id="info-kicker">关卡说明</div>
+    <div class="win-kicker" id="info-kicker" data-i18n="infoKicker">关卡说明</div>
     <h3 id="info-title"></h3>
     <div id="info-theory"></div>
     <p class="hint-line"><svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="square" aria-hidden="true"><circle cx="8" cy="6.5" r="3.6"/><path d="M8 1.2 V2.6 M3.4 3 L4.4 4 M12.6 3 L11.6 4 M6.4 10.2 H9.6 L9.1 12.4 H6.9 Z M7.2 14 H8.8"/></svg> <span id="info-hint"></span></p>
-    <div class="win-btns"><button id="btn-info-close" class="run-btn">回到布线台</button></div>
+    <div class="win-btns"><button id="btn-info-close" class="run-btn"><span data-i18n="infoBack">回到布线台</span></button></div>
   </div>
 </div>
 
@@ -173,38 +174,40 @@ HLT   标签写为  L:  注释用 #</pre>
 
 <div id="win-modal" hidden>
   <div class="win-card">
-    <div class="win-kicker">✓ 验证通过</div>
+    <div class="win-kicker" data-i18n="winKicker">✓ 验证通过</div>
     <h3 id="win-title">关卡完成</h3>
     <p id="win-text"></p>
     <div class="win-btns">
-      <button id="btn-map2" class="act-btn">路线图</button>
-      <button id="btn-next" class="run-btn">下一关 →</button>
+      <button id="btn-map2" class="act-btn"><span data-i18n="winMap">路线图</span></button>
+      <button id="btn-next" class="run-btn"><span data-i18n="winNext">下一关 →</span></button>
     </div>
   </div>
 </div>
 
 <div id="help-modal" hidden>
   <div class="win-card wide">
-    <div class="win-kicker">玩法说明</div>
-    <h3>像《图灵完备》那样，从门搭到 CPU，只是这里是三进制</h3>
+    <div class="win-kicker" data-i18n="helpKicker">玩法说明</div>
+    <h3 data-i18n="helpTitle">像《图灵完备》那样，从门搭到 CPU，只是这里是三进制</h3>
     <ol>
-      <li><b>三态：</b>每根线都是 <span class="t neg">−</span> / <span class="t zero">0</span> / <span class="t pos">+</span>。点输入端切换。</li>
-      <li><b>连线：</b>按住<b>输出钉</b>拖到<b>输入钉</b>松手（点两下也行），直角走线。</li>
-      <li><b>改线：</b>双击导线添加可拖动的导线节点；右键点导线删除；节点右键删除该节点。</li>
-      <li><b>选择：</b>空白处拖拽框选，Shift 加选；Delete 删除选中；Esc 取消连线/选择。</li>
-      <li><b>视图：</b>空格/中键/右键拖拽平移，滚轮缩放。Ctrl+Z/Y 撤销/重做，Ctrl+C/V 复制粘贴。</li>
-      <li><b>过关：</b>底部测试条列出全部用例，点右上「运行测试」全绿即过关，解锁新标准件。</li>
-      <li><b>时钟：</b>含触发器的关用「滴答」推进，序列测试每步自动滴答。自动档位 1/2/5/10 TPS，拍数记在工具条；每次滴答都会记进下方<b>时间轴</b>波形。</li>
-      <li><b>调试：</b>左上输入输出总览条点输入可切换；右下「开发者模式」可直接全开 18 关。</li>
+      <li data-i18n="h0"><b>三态：</b>每根线都是 <span class="t neg">−</span> / <span class="t zero">0</span> / <span class="t pos">+</span>。点输入端切换。</li>
+      <li data-i18n="h1"><b>连线：</b>按住<b>输出钉</b>拖到<b>输入钉</b>松手（点两下也行），直角走线。</li>
+      <li data-i18n="h2"><b>改线：</b>双击导线添加可拖动的导线节点；右键点导线删除；节点右键删除该节点。</li>
+      <li data-i18n="h3"><b>选择：</b>空白处拖拽框选，Shift 加选；Delete 删除选中；Esc 取消连线/选择。</li>
+      <li data-i18n="h4"><b>视图：</b>空格/中键/右键拖拽平移，滚轮缩放。Ctrl+Z/Y 撤销/重做，Ctrl+C/V 复制粘贴。</li>
+      <li data-i18n="h5"><b>过关：</b>底部测试条列出全部用例，点右上「运行测试」全绿即过关，解锁新标准件。</li>
+      <li data-i18n="h6"><b>时钟：</b>含触发器的关用「滴答」推进，序列测试每步自动滴答。自动档位 1/2/5/10 TPS，拍数记在工具条；每次滴答都会记进下方<b>时间轴</b>波形。</li>
+      <li data-i18n="h7"><b>调试：</b>左上输入输出总览条点输入可切换；右下「开发者模式」可直接全开 18 关。</li>
     </ol>
-    <div class="win-btns"><button id="btn-help-close" class="run-btn">开始搭建</button></div>
+    <div class="win-btns"><button id="btn-help-close" class="run-btn"><span data-i18n="helpStart">开始搭建</span></button></div>
   </div>
 </div>
 
 <script src="ternary.js"></script>
 <script src="levels.js"></script>
+<script src="levels_en.js"></script>
 <script src="cpu.js"></script>
 <script src="icons.js"></script>
+<script src="i18n.js"></script>
 <script src="editor.js"></script>
 <script src="app.js"></script>
 </body>

@@ -34,7 +34,7 @@ const Editor = {
       this.pushHistory();
       this.circuit.wires = []; this.pending = null;
       this.selectedWire = null; this.selectedWp = null;
-      this.refresh(); this.toast('连线已清空');
+      this.refresh(); this.toast(t('tCleared'));
     };
     document.getElementById('btn-del').onclick = () => this.deleteSelected();
     document.getElementById('btn-tick').onclick = () => { this.tick(); };
@@ -92,7 +92,7 @@ const Editor = {
         const w = this.circuit.wires.find(x => x.wid === Number(wp.dataset.wid));
         if (w) w.pts.splice(Number(wp.dataset.idx), 1);
         this.selectedWp = null; this.refresh();
-        this.toast('已删除导线节点（右键点导线本体删除整根线）');
+        this.toast(t('tWpDel'));
         return;
       }
       const g = e.target.closest && e.target.closest('[data-wid]');
@@ -228,8 +228,8 @@ const Editor = {
   },
 
   defOf(node) {
-    if (node.type === 'INPUT') return { name: node.ioName || '输入', en: 'IN', inputs: [], outputs: ['Q'] };
-    if (node.type === 'OUTPUT') return { name: node.ioName || '输出', en: 'OUT', inputs: ['A'], outputs: [] };
+    if (node.type === 'INPUT') return { name: node.ioName || t('inLbl'), en: 'IN', inputs: [], outputs: ['Q'] };
+    if (node.type === 'OUTPUT') return { name: node.ioName || t('outLbl'), en: 'OUT', inputs: ['A'], outputs: [] };
     return COMP_DEFS[node.type];
   },
 
@@ -250,8 +250,8 @@ const Editor = {
       const d = COMP_DEFS[k]; if (!d) return;
       const b = document.createElement('button');
       b.className = 'pal-btn';
-      b.innerHTML = `<span>${d.name}</span><small>${d.en}</small>`;
-      b.title = d.desc || '';
+      b.innerHTML = `<span>${compName(k)}</span><small>${d.en}</small>`;
+      b.title = compDesc(k);
       b.onclick = () => {
         const w = this.toWorld(
           this.elWrap.getBoundingClientRect().left + this.elWrap.clientWidth / 2,
@@ -263,7 +263,7 @@ const Editor = {
       pal.appendChild(b);
     });
     if (!(level.palette || []).length && level.kind === 'circuit') {
-      pal.innerHTML = '<span style="font-size:12px;color:var(--dim)">本关无需元件，直接连线</span>';
+      pal.innerHTML = `<span style="font-size:12px;color:var(--dim)">${t('noGates')}</span>`;
     }
   },
 
@@ -273,9 +273,9 @@ const Editor = {
     const selEl = document.getElementById('sel-info');
     if (selEl) {
       selEl.textContent =
-        this.selectedWp ? '选中：导线节点' :
-        this.selectedWire != null ? '选中：导线' :
-        this.selected.length ? `选中 ${this.selected.length} 个` : '未选中';
+        this.selectedWp ? t('selWp') :
+        this.selectedWire != null ? t('selWire') :
+        this.selected.length ? t('selN', this.selected.length) : t('selNone');
     }
   },
   // 轻量选中：只切换高亮类，不重建 DOM（保 dblclick 可用）
@@ -316,7 +316,7 @@ const Editor = {
       const n = this.nodeById(nid);
       return n && (n.type === 'INPUT' || n.type === 'OUTPUT');
     });
-    if (locked) { this.toast('输入/输出端子不能删除'); return; }
+    if (locked) { this.toast(t('tNoDelIO')); return; }
     this.pushHistory();
     const del = new Set(this.selected);
     this.circuit.nodes = this.circuit.nodes.filter(x => !del.has(x.nid));
@@ -335,7 +335,7 @@ const Editor = {
       nodes: nodes.map(n => ({ ...n, x: n.x - minX, y: n.y - minY })),
       wires: wires.map(w => ({ ...w, pts: (w.pts || []).map(p => ({ x: p.x - minX, y: p.y - minY })) })),
     };
-    this.toast(`已复制 ${nodes.length} 个元件`);
+    this.toast(t('tCopied', nodes.length));
   },
   pasteSel() {
     if (!this.circuit || !this.clipboard) return;
@@ -438,7 +438,7 @@ const Editor = {
     this.sampleTimeline();
     this.refresh();
     this.renderTimeline();
-    if (any) document.getElementById('sim-state').textContent = '● 滴答 ✓';
+    if (any) document.getElementById('sim-state').textContent = '● ' + t('simTick');
   },
 
   updateTickUI() {
@@ -471,7 +471,7 @@ const Editor = {
     const info = document.getElementById('tl-info');
     if (!box) return;
     const F = this.tlFrames;
-    if (!F.length) { box.innerHTML = '<div class="tl-empty">滴答一次开始记录波形（T 每 +1 记一拍）</div>'; if (info) info.textContent = ''; return; }
+    if (!F.length) { box.innerHTML = `<div class="tl-empty">${t('tlEmpty')}</div>`; if (info) info.textContent = ''; return; }
     const sigs = [];
     F[0].ins.forEach(([nm]) => sigs.push({ k: 'i:' + nm, label: 'IN ' + nm }));
     F[0].outs.forEach(([nm]) => sigs.push({ k: 'o:' + nm, label: 'OUT ' + nm }));
@@ -518,7 +518,7 @@ const Editor = {
     s += '</svg>';
     box.innerHTML = s;
     box.scrollLeft = box.scrollWidth;
-    if (info) info.textContent = `共 ${F.length} 拍 · ${F[0].ins.length}输入 ${F[0].outs.length}输出 ${F[0].regs.length}寄存器`;
+    if (info) info.textContent = t('tlInfo', F.length, F[0].ins.length, F[0].outs.length, F[0].regs.length);
   },
 
   // 输入输出总览条
@@ -532,7 +532,7 @@ const Editor = {
     const cls = v => (v === -1 ? 'v-1' : v === 0 ? 'v0' : v === 1 ? 'v1' : '');
     box.innerHTML =
       `<span class="io-group"><span class="glab">IN</span>` +
-      ins.map((n, i) => `<span class="io-chip in ${cls(n.val)}" data-io="${i}" title="点击切换 ${n.ioName}">${n.ioName}=${sym(n.val)}</span>`).join('') + `</span>` +
+      ins.map((n, i) => `<span class="io-chip in ${cls(n.val)}" data-io="${i}" title="${t('ioToggle')} ${n.ioName}">${n.ioName}=${sym(n.val)}</span>`).join('') + `</span>` +
       `<span class="io-group"><span class="glab">OUT</span>` +
       outs.map(n => { const v = vals[n.nid]['A']; return `<span class="io-chip ${cls(v)}">${n.ioName}=${sym(v)}</span>`; }).join('') + `</span>`;
   },
@@ -554,7 +554,7 @@ const Editor = {
     if (this.autoTimer) clearInterval(this.autoTimer);
     this.autoTimer = null;
     const b = document.getElementById('btn-auto');
-    if (b) { b.classList.remove('on'); b.innerHTML = `${ICONS.play} 自动`; }
+    if (b) { b.classList.remove('on'); b.innerHTML = `${ICONS.play} ${t('autoBtn')}`; }
   },
 
   // 渲染
@@ -604,8 +604,8 @@ const Editor = {
     document.getElementById('stat-gates').textContent = gates;
     this.updateSelInfo();
     document.getElementById('sim-state').innerHTML =
-      unstable ? `${ICONS.warn} 组合环` :
-      floating ? `● 运行中 · ${floating}悬空` : '● 运行中 ✓';
+      unstable ? `${ICONS.warn} ${t('simLoop')}` :
+      floating ? `● ${t('simFloat', floating)}` : `● ${t('simRun')}`;
   },
 
   // 标准逻辑符号（ANSI Distinctive Shape），复合块用矩形、常量用圆形端子
@@ -704,7 +704,7 @@ const Editor = {
       el.className = 'node io' + (n.type === 'INPUT' ? ' io-in clickable' : ' io-out');
       el.dataset.nid = n.nid;
       el.innerHTML = `<div class="nh"><span>${n.ioName} <span class="en">${n.type === 'INPUT' ? 'IN −/0/+' : 'OUT'}</span></span><span class="val">…</span></div>` +
-        `<div class="pins"></div>${n.type === 'INPUT' ? `<div class="use">点击端子切换 −/0/+</div>` : `<div class="use">实时输出</div>`}`;
+        `<div class="pins"></div>${n.type === 'INPUT' ? `<div class="use">${t('useIn')}</div>` : `<div class="use">${t('useOut')}</div>`}`;
       const pinsBox = el.querySelector('.pins');
       (d.inputs || []).forEach(p => pinsBox.appendChild(this.pinEl(n, p, 'in', false)));
       (d.outputs || []).forEach(p => pinsBox.appendChild(this.pinEl(n, p, 'out', false)));
@@ -714,7 +714,7 @@ const Editor = {
       el.className = 'node gate';
       el.dataset.nid = n.nid;
       el.style.width = s.w + 'px';
-      el.innerHTML = `<div class="ntag" title="${d.name} ${d.en}">${d.name}</div><div class="nval val">…</div>` +
+      el.innerHTML = `<div class="ntag" title="${compName(n.type)} ${d.en}">${compName(n.type)}</div><div class="nval val">…</div>` +
         `<svg width="${s.w}" height="${s.h}" viewBox="0 0 ${s.w} ${s.h}">${s.svg}</svg>`;
       const PT = 24; // 名牌条高度，钉坐标整体下移
       (d.inputs || []).forEach((p, i) => el.appendChild(this.pinEl(n, p, 'in', true, { x: s.inA[i].x, y: s.inA[i].y + PT })));
@@ -794,7 +794,7 @@ const Editor = {
       this.refresh(); return;
     }
     // 输入钉：完成连线
-    if (!this.pending) { this.toast('先按住输出钉拖到这里（或先点输出钉再点这里）'); return; }
+    if (!this.pending) { this.toast(t('tFirstOut')); return; }
     this.completeWire(nid, pin);
   },
   completeWire(nid, pin) {
@@ -802,9 +802,9 @@ const Editor = {
     this.pending = null; this.wiring = false; this.mouse = null;
     if (!from) { this.refresh(); return; }
     if (this.circuit.wires.some(w => w.to.nid === nid && w.to.pin === pin)) {
-      this.toast('该输入已连线（右键点线删除）'); this.refresh(); return;
+      this.toast(t('tInUse')); this.refresh(); return;
     }
-    if (from.nid === nid) { this.toast('不能连回同一元件'); this.refresh(); return; }
+    if (from.nid === nid) { this.toast(t('tNoSelf')); this.refresh(); return; }
     this.pushHistory();
     this.circuit.wires.push({ wid: this.widSeq++, from: { ...from }, to: { nid, pin }, pts: [] });
     this.refresh();

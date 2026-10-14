@@ -35,8 +35,8 @@ const CPU = {
       const op = parts[0].toUpperCase();
       const a = parts.slice(1);
       const need = {HLT:0,INP:1,OUT:1,NEG:2,MOV:2,ADD:3,MIN:3,MAX:3,SUB:3,LD:2,ST:2,LIT:2,JMP:1,JPZ:2,JPP:2,JPN:2}[op];
-      if (need === undefined) { errs.push(`第${li+1}行：未知指令 ${op}`); return; }
-      if (a.length !== need) { errs.push(`第${li+1}行：${op} 需要 ${need} 个参数`); return; }
+      if (need === undefined) { errs.push(t('eUnknown', li+1, op)); return; }
+      if (a.length !== need) { errs.push(t('eArgc', li+1, op, need)); return; }
       prog.push({op, a, line: li+1, raw});
     });
     return { prog, labels, errs };
@@ -55,30 +55,30 @@ const CPU = {
     let steps = 0;
     const trace = [];
     while (steps++ < maxSteps) {
-      if (ip < 0 || ip >= prog.length) return { ok:false, errs:[`IP 越界 ${ip}`], R, M, out, trace };
+      if (ip < 0 || ip >= prog.length) return { ok:false, errs:[t('eIp', ip)], R, M, out, trace };
       const ins = prog[ip];
       const { op, a } = ins;
       trace.push({ip, op, a:[...a], R:[...R]});
       const nxt = () => ip++;
       if (op === 'HLT') return { ok:true, R, M, out, trace, steps };
-      else if (op === 'LIT') { const d=rv(a[0]); const v=nv(a[1]); if(d<0||v===null||!Number.isFinite(v)) return {ok:false,errs:[`第${ins.line}行 LIT 参数错`],R,M,out,trace}; R[d]=this.clampW(v); nxt(); }
-      else if (op === 'MOV') { const d=rv(a[0]),s=rv(a[1]); if(d<0||s<0) return {ok:false,errs:[`第${ins.line}行 寄存器错`],R,M,out,trace}; R[d]=R[s]; nxt(); }
-      else if (op === 'NEG') { const d=rv(a[0]),s=rv(a[1]); if(d<0||s<0) return {ok:false,errs:[`第${ins.line}行 寄存器错`],R,M,out,trace}; R[d]=this.clampW(-R[s]); nxt(); }
+      else if (op === 'LIT') { const d=rv(a[0]); const v=nv(a[1]); if(d<0||v===null||!Number.isFinite(v)) return {ok:false,errs:[t('eLit', ins.line)],R,M,out,trace}; R[d]=this.clampW(v); nxt(); }
+      else if (op === 'MOV') { const d=rv(a[0]),s=rv(a[1]); if(d<0||s<0) return {ok:false,errs:[t('eReg', ins.line)],R,M,out,trace}; R[d]=R[s]; nxt(); }
+      else if (op === 'NEG') { const d=rv(a[0]),s=rv(a[1]); if(d<0||s<0) return {ok:false,errs:[t('eReg', ins.line)],R,M,out,trace}; R[d]=this.clampW(-R[s]); nxt(); }
       else if (op==='ADD'||op==='SUB'||op==='MIN'||op==='MAX') {
         const d=rv(a[0]),s1=rv(a[1]); let s2, imm=null;
-        if (d<0||s1<0) return {ok:false,errs:[`第${ins.line}行 寄存器错`],R,M,out,trace};
+        if (d<0||s1<0) return {ok:false,errs:[t('eReg', ins.line)],R,M,out,trace};
         const third=a[2]; const ri=rv(third);
-        if (ri>=0) s2=R[ri]; else { const v=nv(third); if(v===null) return {ok:false,errs:[`第${ins.line}行 第三个参数应为寄存器或立即数`],R,M,out,trace}; s2=v; }
+        if (ri>=0) s2=R[ri]; else { const v=nv(third); if(v===null) return {ok:false,errs:[t('eImm', ins.line)],R,M,out,trace}; s2=v; }
         let v = op==='ADD'?R[s1]+s2:op==='SUB'?R[s1]-s2:op==='MIN'?Math.min(R[s1],s2):Math.max(R[s1],s2);
         R[d]=this.clampW(v); nxt();
       }
-      else if (op==='INP') { const d=rv(a[0]); if(d<0) return {ok:false,errs:[`第${ins.line}行 寄存器错`],R,M,out,trace}; R[d]=this.clampW(inp<inputs.length?inputs[inp++]:0); nxt(); }
-      else if (op==='OUT') { const s=rv(a[0]); if(s<0) return {ok:false,errs:[`第${ins.line}行 寄存器错`],R,M,out,trace}; out.push(this.clampW(R[s])); nxt(); }
-      else if (op==='LD') { const d=rv(a[0]); const ad=nv(a[1].replace(/[\[\]]/g,'')); if(d<0||ad===null||ad<0||ad>8) return {ok:false,errs:[`第${ins.line}行 地址须 0..8`],R,M,out,trace}; R[d]=M[ad]; nxt(); }
-      else if (op==='ST') { const s=rv(a[0]); const ad=nv(a[1].replace(/[\[\]]/g,'')); if(s<0||ad===null||ad<0||ad>8) return {ok:false,errs:[`第${ins.line}行 地址须 0..8`],R,M,out,trace}; M[ad]=R[s]; nxt(); }
-      else if (op==='JMP') { const t=labels[a[0].toUpperCase()]; if(t===undefined) return {ok:false,errs:[`第${ins.line}行 未知标签 ${a[0]}`],R,M,out,trace}; ip=t; }
-      else if (op==='JPZ'||op==='JPP'||op==='JPN') { const s=rv(a[0]); const t=labels[a[1].toUpperCase()]; if(s<0||t===undefined) return {ok:false,errs:[`第${ins.line}行 跳转参数错`],R,M,out,trace}; const c=R[s]; if((op==='JPZ'&&c===0)||(op==='JPP'&&c>0)||(op==='JPN'&&c<0)) ip=t; else nxt(); }
+      else if (op==='INP') { const d=rv(a[0]); if(d<0) return {ok:false,errs:[t('eReg', ins.line)],R,M,out,trace}; R[d]=this.clampW(inp<inputs.length?inputs[inp++]:0); nxt(); }
+      else if (op==='OUT') { const s=rv(a[0]); if(s<0) return {ok:false,errs:[t('eReg', ins.line)],R,M,out,trace}; out.push(this.clampW(R[s])); nxt(); }
+      else if (op==='LD') { const d=rv(a[0]); const ad=nv(a[1].replace(/[\[\]]/g,'')); if(d<0||ad===null||ad<0||ad>8) return {ok:false,errs:[t('eAddr', ins.line)],R,M,out,trace}; R[d]=M[ad]; nxt(); }
+      else if (op==='ST') { const s=rv(a[0]); const ad=nv(a[1].replace(/[\[\]]/g,'')); if(s<0||ad===null||ad<0||ad>8) return {ok:false,errs:[t('eAddr', ins.line)],R,M,out,trace}; M[ad]=R[s]; nxt(); }
+      else if (op==='JMP') { const tgt=labels[a[0].toUpperCase()]; if(tgt===undefined) return {ok:false,errs:[t('eLabel', ins.line, a[0])],R,M,out,trace}; ip=tgt; }
+      else if (op==='JPZ'||op==='JPP'||op==='JPN') { const s=rv(a[0]); const tgt=labels[a[1].toUpperCase()]; if(s<0||tgt===undefined) return {ok:false,errs:[t('eJump', ins.line)],R,M,out,trace}; const c=R[s]; if((op==='JPZ'&&c===0)||(op==='JPP'&&c>0)||(op==='JPN'&&c<0)) ip=tgt; else nxt(); }
     }
-    return { ok:false, errs:['步数超限（死循环？缺 HLT？）'], R, M, out, trace };
+    return { ok:false, errs:[t('eSteps')], R, M, out, trace };
   }
 };
