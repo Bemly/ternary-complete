@@ -1245,12 +1245,11 @@ const Editor = {
             if (o.net === net) continue;
             if (this.overlapLen(s, o) > 6) { bad++; break; }
           }
+          // 同网分叉不判重叠（共干豁免），但交叉与贴近照样摊开
           for (const o of pool) {
-            if (o.net === net) continue;
             if (this.segCross(s, o)) { xing++; break; }
           }
           for (const o of pool) {
-            if (o.net === net) continue;
             if (this.segGap(s, o) < 12) { sep++; break; }
           }
           for (const r of obs) {
