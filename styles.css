@@ -93,7 +93,10 @@ html,body{margin:0;padding:0;background:var(--bg);color:var(--txt);font-family:'
 .pal-btn{display:flex;justify-content:space-between;align-items:center;gap:6px;background:linear-gradient(180deg,#2b323f,#20252f);border:1px solid var(--line2);border-bottom-width:3px;color:var(--txt);border-radius:8px;padding:9px 10px;cursor:grab;font-size:13px}
 .pal-btn:hover{border-color:var(--amber)}
 .pal-btn:active{cursor:grabbing;transform:translateY(1px)}
-.pal-btn small{color:var(--faint);font-family:var(--mono);font-size:10.5px}
+.pal-btn small{color:var(--faint);font-family:var(--mono);font-size:10.5px;flex:none}
+.pal-prev{flex:none;width:48px;height:32px;display:flex;align-items:center;justify-content:center;background:#10131a;border:1px solid var(--line)}
+.pal-prev svg{display:block}
+.pal-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:left}
 .rail-foot{border-top:1px solid #262c38;padding:8px 12px;font-size:11px;color:var(--dim);display:flex;flex-direction:column;gap:3px;font-family:var(--mono)}
 
 /* 中：画布 */

@@ -258,7 +258,15 @@ const Editor = {
       const d = COMP_DEFS[k]; if (!d) return;
       const b = document.createElement('button');
       b.className = 'pal-btn';
-      b.innerHTML = `<span>${compName(k)}</span><small>${d.en}</small>`;
+      // 元件箱显示该元件的真实形状微缩图，不再是干文字方块
+      let prev = '';
+      try {
+        const s = this.shapeOf(k);
+        const dots = s.inA.map(p => `<circle cx="${p.x}" cy="${p.y}" r="3.2" fill="#8b94a7"/>`).join('') +
+          s.outA.map(p => `<circle cx="${p.x}" cy="${p.y}" r="3.2" fill="#ffb74d"/>`).join('');
+        prev = `<span class="pal-prev"><svg viewBox="0 0 ${s.w} ${s.h}" width="48" height="32" preserveAspectRatio="xMidYMid meet">${s.svg}${dots}</svg></span>`;
+      } catch { prev = ''; }
+      b.innerHTML = `${prev}<span class="pal-name">${compName(k)}</span><small>${d.en}</small>`;
       b.title = compDesc(k);
       b.onclick = () => {
         const w = this.toWorld(
