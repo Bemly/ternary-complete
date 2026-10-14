@@ -28,13 +28,39 @@ function renderTree() {
   const tree = $('level-tree');
   tree.innerHTML = '';
   const order = LEVELS.map(l => l.id);
+  // 布线台式路线图：章节自下而上排布，关卡蛇形走线，导线直角连接
+  const MW = 1160, TOP = 100, ROW_H = 200, NW = 184, NH = 78;
+  const nCh = CHAPTERS.length;
+  const H = TOP * 2 + (nCh - 1) * ROW_H;
+  const canvas = document.createElement('div');
+  canvas.id = 'map-canvas';
+  canvas.style.width = MW + 'px';
+  canvas.style.height = H + 'px';
+  const NS = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(NS, 'svg');
+  svg.setAttribute('width', MW); svg.setAttribute('height', H);
+  svg.setAttribute('viewBox', `0 0 ${MW} ${H}`);
+  canvas.appendChild(svg);
+  const pos = {};
   CHAPTERS.forEach((ch, ci) => {
-    const box = document.createElement('div');
-    box.className = 'map-chapter';
+    const r = nCh - 1 - ci; // 0 = 最底行
+    const cy = TOP + r * ROW_H;
     const cn = chName(ci).replace(/^[0-9]\s*·\s*/, '');
-    box.innerHTML = `<h3>CHAPTER ${ci} · ${cn}</h3><p class="cdesc">${t('chDesc')[ci] || ''}</p><div class="map-nodes"></div>`;
-    const grid = box.querySelector('.map-nodes');
-    LEVELS.filter(l => l.ch === ch).forEach(lv => {
+    const plate = document.createElement('div');
+    plate.className = 'mplate';
+    plate.style.left = '12px';
+    plate.style.top = (cy - 48) + 'px';
+    plate.innerHTML = `<b>CHAPTER ${ci} · ${cn}</b><small>${t('chDesc')[ci] || ''}</small>`;
+    canvas.appendChild(plate);
+    const lvs = LEVELS.filter(l => l.ch === ch);
+    const k = lvs.length;
+    const span = k > 1 ? Math.min(740, (k - 1) * 220) : 0;
+    const x0 = 690 - span / 2;
+    const dir = (r % 2 === 0) ? 1 : -1; // 蛇形：偶数行左→右，奇数行右→左
+    lvs.forEach((lv, i) => {
+      const seq = dir === 1 ? i : (k - 1 - i);
+      const cx = k === 1 ? 690 : x0 + seq * (span / (k - 1));
+      pos[lv.id] = { x: cx, y: cy };
       const idx = order.indexOf(lv.id);
       const unlocked = S.dev || idx <= S.done.length;
       const done = S.done.includes(lv.id);
@@ -42,16 +68,43 @@ function renderTree() {
         : lv.seq ? `${t('kSeq')} · ${lv.steps().length}${t('uSteps')}`
         : `${t('kComb')} · ${lv.tests().length}${t('uTests')}`;
       const b = document.createElement('button');
-      b.className = 'map-node' + (done ? ' done' : '') + (S.cur === lv.id ? ' cur' : '');
+      b.className = 'mnode' + (done ? ' done' : '') + (S.cur === lv.id ? ' cur' : '');
       b.disabled = !unlocked;
-      b.innerHTML = `<span class="idx">${String(idx + 1).padStart(2, '0')}</span>` +
-        `<span><b>${LText(lv, 'name')}</b><small>${sub}</small></span>` +
+      b.style.left = (cx - NW / 2) + 'px';
+      b.style.top = (cy - NH / 2) + 'px';
+      b.style.width = NW + 'px';
+      b.innerHTML = `<span class="midx">${String(idx + 1).padStart(2, '0')}</span>` +
+        `<span class="mbody"><b>${LText(lv, 'name')}</b><small>${sub}</small></span>` +
         `<span class="st">${done ? '✓' : unlocked ? (S.cur === lv.id ? '●' : '→') : ICONS.lock}</span>`;
       b.onclick = () => loadLevel(lv.id);
-      grid.appendChild(b);
+      canvas.appendChild(b);
     });
-    tree.appendChild(box);
   });
+  // 关卡之间的连接导线（全局线性顺序）
+  for (let i = 0; i < order.length - 1; i++) {
+    const A = pos[order[i]], B = pos[order[i + 1]];
+    const bDone = S.done.includes(order[i + 1]);
+    const bUn = S.dev || (i + 1) <= S.done.length;
+    let p, q;
+    if (Math.abs(A.y - B.y) < 1) {
+      if (B.x >= A.x) { p = [A.x + NW / 2, A.y]; q = [B.x - NW / 2, B.y]; }
+      else { p = [A.x - NW / 2, A.y]; q = [B.x + NW / 2, B.y]; }
+    } else if (B.y < A.y) { p = [A.x, A.y - NH / 2]; q = [B.x, B.y + NH / 2]; }
+    else { p = [A.x, A.y + NH / 2]; q = [B.x, B.y - NH / 2]; }
+    const mx = (p[0] + q[0]) / 2, my = (p[1] + q[1]) / 2;
+    const path = document.createElementNS(NS, 'path');
+    path.setAttribute('d', `M ${p[0]} ${p[1]} L ${mx} ${p[1]} L ${mx} ${q[1]} L ${q[0]} ${q[1]}`);
+    path.setAttribute('class', 'mwire ' + (bDone ? 'ok' : bUn ? 'live' : 'dim'));
+    svg.appendChild(path);
+    for (const pt of [p, q]) {
+      const j = document.createElementNS(NS, 'rect');
+      j.setAttribute('x', pt[0] - 4); j.setAttribute('y', pt[1] - 4);
+      j.setAttribute('width', 8); j.setAttribute('height', 8);
+      j.setAttribute('class', 'mjunc ' + (bDone ? 'ok' : bUn ? 'live' : 'dim'));
+      svg.appendChild(j);
+    }
+  }
+  tree.appendChild(canvas);
   $('stat-progress').textContent = `${S.done.length}/${LEVELS.length}`;
   const devBtn = $('btn-dev');
   if (devBtn) {
