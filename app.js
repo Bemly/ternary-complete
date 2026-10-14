@@ -6,7 +6,8 @@ const store = {
   load() { try { return JSON.parse(localStorage.getItem(this.key)) || {}; } catch { return {}; } },
   save(o) { localStorage.setItem(this.key, JSON.stringify(o)); },
 };
-let S = Object.assign({ done: [], cur: 't0_wire', circuits: {}, code: {} }, store.load());
+let S = Object.assign({ done: [], cur: 't0_wire', circuits: {}, code: {}, dev: false }, store.load());
+if (location.search.includes('dev')) S.dev = true;
 if (!LEVELS.some(l => l.id === S.cur)) S.cur = 't0_wire';
 
 let cpuSession = null;
@@ -34,7 +35,7 @@ function renderTree() {
     const grid = box.querySelector('.map-nodes');
     LEVELS.filter(l => l.ch === ch).forEach(lv => {
       const idx = order.indexOf(lv.id);
-      const unlocked = idx <= S.done.length;
+      const unlocked = S.dev || idx <= S.done.length;
       const done = S.done.includes(lv.id);
       const b = document.createElement('button');
       b.className = 'map-node' + (done ? ' done' : '') + (S.cur === lv.id ? ' cur' : '');
@@ -48,6 +49,11 @@ function renderTree() {
     tree.appendChild(box);
   });
   $('stat-progress').textContent = `${S.done.length}/${LEVELS.length}`;
+  const devBtn = $('btn-dev');
+  if (devBtn) {
+    devBtn.textContent = S.dev ? '🔓 开发者模式：开' : '🔓 开发者模式：关';
+    devBtn.classList.toggle('on', !!S.dev);
+  }
 }
 
 function showMap() {
@@ -100,6 +106,7 @@ function loadLevel(id) {
   const isProg = lv.kind === 'program';
   $('board-wrap').style.display = isProg ? 'none' : '';
   $('palette-rail').style.display = isProg ? 'none' : '';
+  $('timeline-strip').style.display = (isProg || !Editor.tlOn) ? 'none' : '';
   $('cpu-panel').hidden = !isProg;
   if (!isProg) {
     Editor.loadLevel(lv);
@@ -319,7 +326,11 @@ $('conv-b2d').onclick = () => {
 $('btn-help').onclick = () => { $('help-modal').hidden = false; };
 $('btn-help-close').onclick = () => { $('help-modal').hidden = true; };
 $('btn-reset').onclick = () => {
-  if (confirm('清空全部进度与存档？')) { S = { done: [], cur: 't0_wire', circuits: {}, code: {} }; persist(); showMap(); toast('已重置'); }
+  if (confirm('清空全部进度与存档？')) { const dev = S.dev; S = { done: [], cur: 't0_wire', circuits: {}, code: {}, dev }; persist(); showMap(); toast('已重置'); }
+};
+$('btn-dev').onclick = () => {
+  S.dev = !S.dev; persist(); renderTree();
+  toast(S.dev ? '开发者模式已开：全部 18 关解锁' : '开发者模式已关');
 };
 
 window.addEventListener('beforeunload', saveCurrent);

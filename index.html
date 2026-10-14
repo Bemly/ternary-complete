@@ -41,6 +41,7 @@
       <div><i class="dot done"></i>已通过</div>
       <div><i class="dot cur"></i>当前位置</div>
       <div><i class="dot lock"></i>未解锁</div>
+      <button id="btn-dev" class="ghost-btn" title="开发者模式：解锁全部关卡">🔓 开发者模式：关</button>
     </div>
   </div>
   <div id="level-tree"></div>
@@ -62,6 +63,14 @@
     <div class="lv-actions">
       <button id="btn-tick" class="act-btn" title="时钟滴答：推进所有触发器">⏱ 滴答</button>
       <button id="btn-auto" class="act-btn" title="自动时钟">▶ 自动</button>
+      <select id="tps-sel" title="自动滴答速度（拍/秒）">
+        <option value="1">1 TPS</option>
+        <option value="2" selected>2 TPS</option>
+        <option value="5">5 TPS</option>
+        <option value="10">10 TPS</option>
+      </select>
+      <span id="tick-count" title="时钟已走拍数">T=0</span>
+      <button id="btn-timeline" class="act-btn on" title="显示/隐藏信号时间轴">📈 时间轴</button>
       <button id="btn-clear" class="act-btn">清空连线</button>
       <button id="btn-del" class="act-btn danger">删除选中</button>
       <button id="btn-info" class="act-btn accent">📖 说明与提示</button>
@@ -85,6 +94,7 @@
         <div id="board"></div>
       </div>
       <div id="select-box" hidden></div>
+      <div id="io-panel" title="输入输出总览（点输入切换 −/0/+）"></div>
       <div id="board-hint">输出钉按住<b>拖到</b>输入钉连线 · 双击导线加节点 · 右键删线 · 空白拖拽框选 · 空格/中键/右键拖拽平移 · 滚轮缩放 · 点输入端切换 −/0/+</div>
       <div class="tri-legend"><i class="t neg">−</i><i class="t zero">0</i><i class="t pos">+</i></div>
     </div>
@@ -113,6 +123,15 @@ HLT   标签写为  L:  注释用 #</pre>
         </div>
       </div>
     </div>
+  </div>
+
+  <!-- 信号时间轴 -->
+  <div id="timeline-strip">
+    <div class="tl-head">
+      <span>⏱ 时间轴 <span id="tl-info" class="dim"></span></span>
+      <button id="btn-tl-clear" class="ghost-btn">清空波形</button>
+    </div>
+    <div id="timeline"></div>
   </div>
 
   <!-- 底部测试条（仿图灵完备底部面板） -->
@@ -175,7 +194,8 @@ HLT   标签写为  L:  注释用 #</pre>
       <li><b>选择：</b>空白处拖拽框选，Shift 加选；Delete 删除选中；Esc 取消连线/选择。</li>
       <li><b>视图：</b>空格/中键/右键拖拽平移，滚轮缩放。Ctrl+Z/Y 撤销/重做，Ctrl+C/V 复制粘贴。</li>
       <li><b>过关：</b>底部测试条列出全部用例，点右上「运行测试」全绿即过关，解锁新标准件。</li>
-      <li><b>时钟：</b>含触发器的关用「滴答」推进，序列测试每步自动滴答。</li>
+      <li><b>时钟：</b>含触发器的关用「滴答」推进，序列测试每步自动滴答。自动档位 1/2/5/10 TPS，拍数记在工具条；每次滴答都会记进下方<b>时间轴</b>波形。</li>
+      <li><b>调试：</b>左上输入输出总览条点输入可切换；右下「开发者模式」可直接全开 18 关。</li>
     </ol>
     <div class="win-btns"><button id="btn-help-close" class="run-btn">开始搭建</button></div>
   </div>

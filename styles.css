@@ -221,3 +221,27 @@ html,body{margin:0;padding:0;background:var(--bg);color:var(--txt);font-family:'
 #wires rect.wp{fill:#14171d;stroke:var(--amber);stroke-width:2;cursor:grab}
 #wires rect.wp:hover{fill:var(--amber)}
 #wires rect.wp.sel{fill:var(--amber)}
+
+/* —— 时钟：TPS 档位 + 拍计数 —— */
+#tps-sel{background:#222835;border:1px solid var(--line2);color:var(--txt);font-family:var(--mono);font-size:12px;padding:7px 6px;cursor:pointer}
+#tick-count{font-family:var(--mono);font-size:12.5px;color:var(--amber);border:1px solid #5a4a28;padding:7px 10px;background:#14100a;white-space:nowrap}
+#btn-timeline.on{border-color:var(--amber);color:var(--amber)}
+
+/* —— 输入输出总览条 —— */
+#io-panel{position:absolute;top:10px;left:12px;z-index:5;display:flex;gap:10px;max-width:60%;flex-wrap:wrap;pointer-events:none}
+.io-group{display:flex;gap:4px;align-items:center;background:rgba(10,12,16,.88);border:1px solid var(--line2);padding:4px 7px;pointer-events:auto}
+.io-group .glab{font-family:var(--mono);font-size:10px;color:var(--faint);letter-spacing:1px}
+.io-chip{font-family:var(--mono);font-size:11.5px;border:1px solid var(--line2);padding:2px 7px;background:#10131a;cursor:default;white-space:nowrap}
+.io-chip.in{cursor:pointer}
+.io-chip.in:hover{border-color:#fff}
+.io-chip.v-1{color:var(--neg);border-color:var(--neg)}
+.io-chip.v0{color:var(--zero)}
+.io-chip.v1{color:var(--pos);border-color:var(--pos)}
+
+/* —— 信号时间轴 —— */
+#timeline-strip{background:#10131a;border-top:1px solid #262c38;flex:none}
+.tl-head{display:flex;justify-content:space-between;align-items:center;padding:4px 12px;font-size:12px;color:var(--dim)}
+#timeline{max-height:150px;overflow:auto;padding:2px 8px 8px}
+#timeline svg text{font-family:var(--mono)}
+#timeline .tl-empty{color:var(--faint);font-size:12px;padding:8px 4px}
+#btn-dev.on{color:var(--amber);border-color:var(--amber)}

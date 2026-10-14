@@ -17,6 +17,7 @@ const Editor = {
   pending: null, selected: [], selectedWire: null, selectedWp: null,
   autoTimer: null, nidSeq: 1, widSeq: 1,
   pan: { x: 20, y: 10 }, zoom: 1,
+  tickCount: 0, tlFrames: [], tlOn: true,
   mouse: null, spaceDown: false, clipboard: null,
   undoStack: [], redoStack: [],
 
@@ -38,6 +39,26 @@ const Editor = {
     document.getElementById('btn-del').onclick = () => this.deleteSelected();
     document.getElementById('btn-tick').onclick = () => { this.tick(); };
     document.getElementById('btn-auto').onclick = (e) => this.toggleAuto(e);
+    document.getElementById('tps-sel').onchange = () => {
+      if (this.autoTimer) { this.stopAuto(); this.toggleAuto(document.getElementById('btn-auto')); }
+    };
+    document.getElementById('btn-timeline').onclick = (e) => {
+      this.tlOn = !this.tlOn;
+      document.getElementById('timeline-strip').style.display = this.tlOn ? '' : 'none';
+      e.target.classList.toggle('on', this.tlOn);
+      if (this.tlOn) this.renderTimeline();
+    };
+    document.getElementById('btn-tl-clear').onclick = () => {
+      this.tlFrames = []; this.tickCount = 0;
+      this.sampleTimeline(); this.renderTimeline(); this.updateTickUI();
+    };
+    document.getElementById('io-panel').onclick = (e) => {
+      const c = e.target.closest && e.target.closest('[data-io]');
+      if (!c) return;
+      const ins = this.circuit.nodes.filter(n => n.type === 'INPUT');
+      const n = ins[Number(c.dataset.io)];
+      if (n) { n.val = n.val === -1 ? 0 : n.val === 0 ? 1 : -1; this.refresh(); }
+    };
 
     // 导线：单击选中 / 双击加节点
     this.elWires.addEventListener('click', (e) => {
@@ -183,6 +204,7 @@ const Editor = {
     this.stopAuto();
     this.nidSeq = 1; this.widSeq = 1;
     this.pan = { x: 20, y: 10 }; this.zoom = 1;
+    this.tickCount = 0; this.tlFrames = [];
     this.elBoard.innerHTML = '';
     if (level.kind === 'circuit') {
       const n = level.inputs.length, m = level.outputs.length;
@@ -198,6 +220,9 @@ const Editor = {
     this.buildPalette(level);
     this.applyView();
     this.refresh();
+    this.updateTickUI();
+    this.sampleTimeline();
+    this.renderTimeline();
   },
 
   defOf(node) {
@@ -384,8 +409,108 @@ const Editor = {
         }
       }
     }
+    this.tickCount++;
+    this.updateTickUI();
+    this.sampleTimeline();
     this.refresh();
+    this.renderTimeline();
     if (any) document.getElementById('sim-state').textContent = '● 滴答 ✓';
+  },
+
+  updateTickUI() {
+    const el = document.getElementById('tick-count');
+    if (el) el.textContent = 'T=' + this.tickCount;
+  },
+  curTps() {
+    const v = parseInt((document.getElementById('tps-sel') || {}).value, 10);
+    return [1, 2, 5, 10].includes(v) ? v : 2;
+  },
+
+  // —— 时间轴：每次滴答采样输入/输出/寄存器状态 ——
+  sampleTimeline() {
+    if (!this.circuit || !this.level || this.level.kind !== 'circuit') return;
+    const { vals } = this.evaluate();
+    const ins = this.circuit.nodes.filter(n => n.type === 'INPUT').map(n => [n.ioName || 'IN', n.val]);
+    const outs = this.circuit.nodes.filter(n => n.type === 'OUTPUT').map(n => [n.ioName || 'OUT', vals[n.nid]['A']]);
+    const regs = this.circuit.nodes
+      .filter(n => n.type === 'DFF' || n.type === 'REG1')
+      .map(n => [(COMP_DEFS[n.type].en + '#' + n.nid), (n.state ?? 0)]);
+    this.tlFrames.push({ t: this.tickCount, ins, outs, regs });
+    if (this.tlFrames.length > 240) this.tlFrames.shift();
+  },
+  clearTimeline() {
+    this.tlFrames = []; this.tickCount = 0;
+    this.sampleTimeline(); this.renderTimeline(); this.updateTickUI();
+  },
+  renderTimeline() {
+    const box = document.getElementById('timeline');
+    const info = document.getElementById('tl-info');
+    if (!box) return;
+    const F = this.tlFrames;
+    if (!F.length) { box.innerHTML = '<div class="tl-empty">滴答一次开始记录波形（T 每 +1 记一拍）</div>'; if (info) info.textContent = ''; return; }
+    const sigs = [];
+    F[0].ins.forEach(([nm]) => sigs.push({ k: 'i:' + nm, label: 'IN ' + nm }));
+    F[0].outs.forEach(([nm]) => sigs.push({ k: 'o:' + nm, label: 'OUT ' + nm }));
+    F[0].regs.forEach(([nm]) => sigs.push({ k: 'r:' + nm, label: nm }));
+    const step = 22, rowH = 26, labW = 96;
+    const W = labW + F.length * step + 26;
+    const H = sigs.length * rowH + 20;
+    const yOf = (r, v) => r * rowH + 5 + (1 - (v ?? 0)) * (rowH - 10) / 2;
+    const xOf = i => labW + 8 + i * step;
+    const col = v => (v === 1 ? '#ffa726' : v === -1 ? '#4fc3f7' : '#9aa0b0');
+    const at = (f, sg) => {
+      const arr = sg.k[0] === 'i' ? f.ins : sg.k[0] === 'o' ? f.outs : f.regs;
+      const hit = arr.find(x => (sg.k[0] + ':' + x[0]) === sg.k);
+      return hit ? hit[1] : null;
+    };
+    const symT = v => (v == null ? '·' : v === -1 ? '−' : v === 0 ? '0' : '+');
+    let s = `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">`;
+    sigs.forEach((sg, r) => {
+      const yT = r * rowH + 5, yM = r * rowH + rowH / 2, yB = (r + 1) * rowH - 5;
+      s += `<line x1="${labW}" y1="${yT}" x2="${W - 8}" y2="${yT}" stroke="#2a3040" stroke-width="1"/>` +
+        `<line x1="${labW}" y1="${yM}" x2="${W - 8}" y2="${yM}" stroke="#2a3040" stroke-width="1" stroke-dasharray="3 3"/>` +
+        `<line x1="${labW}" y1="${yB}" x2="${W - 8}" y2="${yB}" stroke="#2a3040" stroke-width="1"/>`;
+      const lv = at(F[F.length - 1], sg);
+      s += `<text x="4" y="${yM + 4}" fill="#9aa1b2" font-size="11">${sg.label}</text>` +
+        `<text x="${labW - 22}" y="${yM + 4}" fill="${col(lv)}" font-size="11">${symT(lv)}</text>`;
+      let d = '';
+      F.forEach((f, i) => {
+        const v = at(f, sg);
+        const x = xOf(i), y = yOf(r, v == null ? 0 : v);
+        if (!i) d += `M ${x} ${y}`;
+        else {
+          const pv = at(F[i - 1], sg);
+          d += ` L ${x} ${yOf(r, pv == null ? 0 : pv)} L ${x} ${y}`;
+        }
+      });
+      s += `<path d="${d}" fill="none" stroke="${col(lv)}" stroke-width="2"/>`;
+      F.forEach((f, i) => {
+        const v = at(f, sg);
+        const y = yOf(r, v == null ? 0 : v);
+        s += `<rect x="${xOf(i) - 3}" y="${y - 3}" width="6" height="6" fill="${col(v)}" stroke="#0c0e12" stroke-width="1"><title>T=${f.t} ${sg.label}=${v}</title></rect>`;
+      });
+    });
+    F.forEach((f, i) => { s += `<text x="${xOf(i) - 3}" y="${H - 5}" fill="#6b7385" font-size="9">${f.t}</text>`; });
+    s += '</svg>';
+    box.innerHTML = s;
+    box.scrollLeft = box.scrollWidth;
+    if (info) info.textContent = `共 ${F.length} 拍 · ${F[0].ins.length}输入 ${F[0].outs.length}输出 ${F[0].regs.length}寄存器`;
+  },
+
+  // —— 输入输出总览条 ——
+  renderIoPanel() {
+    const box = document.getElementById('io-panel');
+    if (!box || !this.circuit) return;
+    const { vals } = this.evaluate();
+    const ins = this.circuit.nodes.filter(n => n.type === 'INPUT');
+    const outs = this.circuit.nodes.filter(n => n.type === 'OUTPUT');
+    const sym = v => (v == null ? '·' : v === -1 ? '−' : v === 0 ? '0' : '+');
+    const cls = v => (v === -1 ? 'v-1' : v === 0 ? 'v0' : v === 1 ? 'v1' : '');
+    box.innerHTML =
+      `<span class="io-group"><span class="glab">IN</span>` +
+      ins.map((n, i) => `<span class="io-chip in ${cls(n.val)}" data-io="${i}" title="点击切换 ${n.ioName}">${n.ioName}=${sym(n.val)}</span>`).join('') + `</span>` +
+      `<span class="io-group"><span class="glab">OUT</span>` +
+      outs.map(n => { const v = vals[n.nid]['A']; return `<span class="io-chip ${cls(v)}">${n.ioName}=${sym(v)}</span>`; }).join('') + `</span>`;
   },
 
   resetStates() {
@@ -395,8 +520,10 @@ const Editor = {
   toggleAuto(e) {
     if (this.autoTimer) this.stopAuto();
     else {
-      this.autoTimer = setInterval(() => this.tick(), 900);
-      e.target.classList.add('on'); e.target.textContent = '⏸ 停止';
+      const ms = Math.round(1000 / this.curTps());
+      this.autoTimer = setInterval(() => this.tick(), ms);
+      const b = e.target || document.getElementById('btn-auto');
+      b.classList.add('on'); b.textContent = `⏸ ${this.curTps()}TPS`;
     }
   },
   stopAuto() {
@@ -447,6 +574,7 @@ const Editor = {
     }
     this.applyView();
     this.drawWires(vals);
+    this.renderIoPanel();
     const gates = this.circuit.nodes.filter(n => n.type !== 'INPUT' && n.type !== 'OUTPUT').length;
     document.getElementById('stat-gates').textContent = gates;
     const selEl = document.getElementById('sel-info');
