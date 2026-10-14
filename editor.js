@@ -1069,6 +1069,24 @@ const Editor = {
     }
     return d;
   },
+  // 导线审计：每根线的路径首尾必须精确落在两端钉中心（2.5px 内），否则报坏线
+  auditWires() {
+    if (!this.circuit) return [];
+    const bad = [];
+    for (const w of this.circuit.wires) {
+      const a = this.wirePoint(w.from.nid, w.from.pin, 'out');
+      const b = this.wirePoint(w.to.nid, w.to.pin, 'in');
+      if (!a || !b) { bad.push({ wid: w.wid, missing: true, ends: ['from', 'to'] }); continue; }
+      const d = this.routeThrough([a, ...(w.pts || []), b]);
+      const nums = d.match(/-?\d+(\.\d+)?/g).map(Number);
+      const p0 = [nums[0], nums[1]], p1 = [nums[nums.length - 2], nums[nums.length - 1]];
+      const ends = [];
+      if (Math.hypot(p0[0] - a.x, p0[1] - a.y) > 2.5) ends.push('from');
+      if (Math.hypot(p1[0] - b.x, p1[1] - b.y) > 2.5) ends.push('to');
+      if (ends.length) bad.push({ wid: w.wid, missing: false, ends });
+    }
+    return bad;
+  },
 
   drawWires(vals) {
     const svg = this.elWires;

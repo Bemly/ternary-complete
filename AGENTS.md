@@ -88,6 +88,8 @@ console.log('EN levels:', Object.keys(LEVEL_EN).length+'/18');
   元件箱必须显示各元件真实形状微缩预览（`buildPalette()` 经 `shapeOf()` 生成），禁止干文字方块。
   路线图节点同样不得用矩形卡片，经 `mapShape()` 取各关代表元件符号（特殊关用定制 glyph），
   自下而上蛇形导线连接，节点包络盒不得相互重叠。
+  导线端点必须落在符号/钉轮廓上：布线台走 `Editor.routeThrough()` 并可用 `auditWires()` 自检；
+  路线图先挂载 canvas 再实测符号墨盒（`getBBox`）定端点，离线量尺寸全是 0。
 - **键鼠对标《图灵完备》**（详见 `editor.js` 顶部注释）：输出钉按住拖到输入钉连线；
   按住导线本体拖拽改走向；双击导线添加可拖动的导线节点；右键点导线删除；空白拖拽框选；空格/中键/右键拖拽平移；
   滚轮缩放；`Delete` 删除选中；`Esc` 取消；`Ctrl+Z/Y` 撤销/重做；`Ctrl+C/V` 复制粘贴。

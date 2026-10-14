@@ -97,6 +97,7 @@ function renderTree() {
       const b = document.createElement('button');
       b.className = 'mcell' + (done ? ' done' : '') + (S.cur === lv.id ? ' cur' : '');
       b.disabled = !unlocked;
+      b.dataset.lv = lv.id;
       b.style.left = (cx - NW / 2) + 'px';
       b.style.top = (cy - NH / 2) + 'px';
       b.style.width = NW + 'px';
@@ -111,31 +112,53 @@ function renderTree() {
       canvas.appendChild(b);
     });
   });
-  // 关卡之间的连接导线（全局线性顺序）
+  // 关卡之间的连接导线（全局线性顺序）：
+  // 端点取自实测符号墨盒（getBBox），走线复用布线台 Editor.routeThrough，
+  // 焊点落在符号轮廓上，不再悬空。
+  // 注意：必须先把 canvas 挂进文档再量尺寸，离线元素的 rect 全是 0
+  tree.appendChild(canvas);
+  const inkOf = (id) => {
+    const svgEl = canvas.querySelector(`[data-lv="${id}"] .mshape svg`);
+    const cr = canvas.getBoundingClientRect();
+    const r = svgEl.getBoundingClientRect();
+    let bb = null;
+    try { bb = svgEl.getBBox(); } catch { bb = null; }
+    if (!bb) return { l: r.left - cr.left, t: r.top - cr.top, r: r.right - cr.left, b: r.bottom - cr.top };
+    const vb = svgEl.viewBox.baseVal;
+    const sx = r.width / vb.width, sy = r.height / vb.height;
+    return {
+      l: r.left - cr.left + bb.x * sx, t: r.top - cr.top + bb.y * sy,
+      r: r.left - cr.left + (bb.x + bb.width) * sx, b: r.top - cr.top + (bb.y + bb.height) * sy,
+    };
+  };
+  const edge = (box, side) => side === 'l' ? { x: box.l, y: (box.t + box.b) / 2 }
+    : side === 'r' ? { x: box.r, y: (box.t + box.b) / 2 }
+    : side === 't' ? { x: (box.l + box.r) / 2, y: box.t }
+    : { x: (box.l + box.r) / 2, y: box.b };
   for (let i = 0; i < order.length - 1; i++) {
     const A = pos[order[i]], B = pos[order[i + 1]];
     const bDone = S.done.includes(order[i + 1]);
     const bUn = S.dev || (i + 1) <= S.done.length;
-    let p, q;
+    const boxA = inkOf(order[i]), boxB = inkOf(order[i + 1]);
+    let sa, sb;
     if (Math.abs(A.y - B.y) < 1) {
-      if (B.x >= A.x) { p = [A.x + NW / 2, A.y]; q = [B.x - NW / 2, B.y]; }
-      else { p = [A.x - NW / 2, A.y]; q = [B.x + NW / 2, B.y]; }
-    } else if (B.y < A.y) { p = [A.x, A.y - NH / 2]; q = [B.x, B.y + NH / 2]; }
-    else { p = [A.x, A.y + NH / 2]; q = [B.x, B.y - NH / 2]; }
-    const mx = (p[0] + q[0]) / 2, my = (p[1] + q[1]) / 2;
+      if (B.x >= A.x) { sa = 'r'; sb = 'l'; }
+      else { sa = 'l'; sb = 'r'; }
+    } else if (B.y < A.y) { sa = 't'; sb = 'b'; }
+    else { sa = 'b'; sb = 't'; }
+    const p = edge(boxA, sa), q = edge(boxB, sb);
     const path = document.createElementNS(NS, 'path');
-    path.setAttribute('d', `M ${p[0]} ${p[1]} L ${mx} ${p[1]} L ${mx} ${q[1]} L ${q[0]} ${q[1]}`);
+    path.setAttribute('d', Editor.routeThrough([p, q]));
     path.setAttribute('class', 'mwire ' + (bDone ? 'ok' : bUn ? 'live' : 'dim'));
     svg.appendChild(path);
     for (const pt of [p, q]) {
       const j = document.createElementNS(NS, 'rect');
-      j.setAttribute('x', pt[0] - 4); j.setAttribute('y', pt[1] - 4);
+      j.setAttribute('x', pt.x - 4); j.setAttribute('y', pt.y - 4);
       j.setAttribute('width', 8); j.setAttribute('height', 8);
       j.setAttribute('class', 'mjunc ' + (bDone ? 'ok' : bUn ? 'live' : 'dim'));
       svg.appendChild(j);
     }
   }
-  tree.appendChild(canvas);
   $('stat-progress').textContent = `${S.done.length}/${LEVELS.length}`;
   const devBtn = $('btn-dev');
   if (devBtn) {
