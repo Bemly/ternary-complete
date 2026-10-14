@@ -1,6 +1,6 @@
 /* 电路编辑器 + 仿真器
  *
- * 键鼠操作（对标《图灵完备》）：
+ * 键鼠操作约定：
  * - 按住输出钉 → 拖到输入钉松手：连线（点两下也行）；Esc 取消
  * - 按住导线本体拖拽：抓取点即时弯折改走向；双击加节点；右键点节点删该节点
  * - 右键点导线：删除该导线；单击导线：选中（Delete 删除）
@@ -937,7 +937,7 @@ const Editor = {
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', up);
   },
-  // 按住导线本体拖拽：抓取点即时变成可拖的弯折点（对标图灵完备的手感）
+  // 按住导线本体拖拽：抓取点即时变成可拖的弯折点
   bendWireAt(wid, e) {
     const w = this.circuit.wires.find(x => x.wid === wid);
     if (!w) return;

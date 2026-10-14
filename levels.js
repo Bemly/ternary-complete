@@ -50,7 +50,7 @@ const LEVELS = [
 
 { id:'t0_sti', ch:'0 · 平衡三进制', name:'取反 STI：第一个门', kind:'circuit',
   desc:'用 1 个 TNAND 搭出「非门」STI：Y = −A。把 TNAND 的两个输入并在一起会发生什么？',
-  theory:'<b>TNAND</b>：<code>Y = −min(A,B)</code>。当 A=B=x 时，Y = −x，正好就是<b>标准反相 STI</b>。在《图灵完备》里 NOT 也是这样从 NAND 长出来的。试试：输入 − → 输出 +，输入 0 → 0，+ → −。',
+  theory:'<b>TNAND</b>：<code>Y = −min(A,B)</code>。当 A=B=x 时，Y = −x，正好就是<b>标准反相 STI</b>，和用 NAND 搭 NOT 的经典做法一模一样。试试：输入 − → 输出 +，输入 0 → 0，+ → −。',
   inputs:['A'], outputs:['Y'], palette:['TNAND'],
   hint:'TNAND(A,A) = −min(A,A) = −A。把输入 A 同时连到 TNAND 的 A、B，再连到输出。',
   win:'STI 解锁！−A 就是平衡三进制的“变号”。',
@@ -194,7 +194,7 @@ const LEVELS = [
   win:'第一个三进制程序跑通了！你正在对“自己体系”的机器编程。' },
 
 { id:'c4_prog2', ch:'4 · 完备', name:'编程 ②：累加 1+2+…+n', kind:'program',
-  desc:'读入 n（1…4），计算 1+2+…+n 并输出。用循环 + 条件跳转实现，这就是“图灵完备”的体感时刻。',
+  desc:'读入 n（1…4），计算 1+2+…+n 并输出。用循环 + 条件跳转实现，这就是“完备”的体感时刻。',
   theory:'需要：计数器 R1 从 1 开始、累加器 R2 从 0 开始；每轮 R2+=R1, R1+=1；当 R1 > n 跳出。用 CMP 思路：JPP/JPN 按符号跳转。TRIT-3 没有 CMP 指令，用 <code>SUB + JPP/JPZ/JPN</code> 组合判断。小心立即数用 LIT 加载。',
   hint:'框架：R1=计数器从1开始，R2=累加器从0开始；每轮先 SUB R3,R1,R0 判断 R1−n，若 R3>0 则已超过n跳 DONE，否则 ADD 累加再自增。注意 ADD 第三个参数可写立即数 1。',
   starter:'# 累加：INP n → 输出 1+..+n\nINP R0\nLIT R1, 1\nLIT R2, 0\nLOOP:\nSUB R3, R1, R0\nJPP R3, DONE\nADD R2, R2, R1\nADD R1, R1, 1\nJMP LOOP\nDONE:\nOUT R2\nHLT\n',
