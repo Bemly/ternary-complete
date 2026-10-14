@@ -606,7 +606,7 @@ const Editor = {
       return {
         w: 84, h: 64,
         svg: body + (bub ? `<circle cx="68" cy="32" r="4" style="${BUB}"/>` : ''),
-        inA: spread(2, 22, 42).map(y => ({ x: isOr ? 16 : 12, y })),
+        inA: spread(2, 22, 42).map(y => ({ x: isOr ? 22 : 12, y })),
         outA: [{ x: outX, y: 32 }],
       };
     }

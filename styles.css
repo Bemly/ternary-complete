@@ -144,11 +144,12 @@ html,body{margin:0;padding:0;background:var(--bg);color:var(--txt);font-family:'
 .node.gate .ntag{position:absolute;top:2px;left:0;font-size:11px;font-weight:700;background:#10131a;border:1px solid var(--line2);padding:2px 7px;white-space:nowrap}
 .node.gate .ntag span{font-family:var(--mono);font-size:10px;color:var(--faint);font-weight:400}
 .node.gate .nval{position:absolute;top:2px;right:0;font-family:var(--mono);font-size:11px;min-width:24px;height:20px;padding:0 6px;background:#10131a;border:1px solid var(--line2);display:inline-flex;align-items:center;justify-content:center}
-.node.gate .pin{position:absolute;transform:translate(-50%,-50%);padding:0;display:flex;align-items:center;gap:4px;font-size:10.5px}
-.node.gate .pin .pdot{position:static;transform:none;width:12px;height:12px;flex:none}
-.node.gate .pin .pl{line-height:1}
-.node.gate .pin.out{flex-direction:row-reverse}
-.node.gate .pin:hover .pdot{transform:scale(1.35);border-color:#fff}
+.node.gate .pin{position:absolute;padding:0;margin:0;width:0;height:0;display:block;font-size:10.5px}
+.node.gate .pin .pdot{position:absolute;left:0;top:0;transform:translate(-50%,-50%);width:12px;height:12px}
+.node.gate .pin .pl{position:absolute;top:0;transform:translateY(-50%);white-space:nowrap;line-height:1}
+.node.gate .pin.in .pl{left:10px}
+.node.gate .pin.out .pl{right:10px}
+.node.gate .pin:hover .pdot{transform:translate(-50%,-50%) scale(1.35);border-color:#fff}
 .node.gate.sel{filter:drop-shadow(0 0 7px rgba(255,183,77,.85))}
 .node.gate.sel svg .bd{stroke:var(--amber);stroke-width:2.5}
 
