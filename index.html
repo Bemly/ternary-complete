@@ -80,9 +80,12 @@
     </aside>
 
     <div id="board-wrap">
-      <svg id="wires"></svg>
-      <div id="board"></div>
-      <div id="board-hint">从<b>右侧输出钉</b>拖到<b>左侧输入钉</b>连线 · 点输入端切换 −/0/+ · 点线删除 · Del 删除选中</div>
+      <div id="stage">
+        <svg id="wires" width="4000" height="4000"></svg>
+        <div id="board"></div>
+      </div>
+      <div id="select-box" hidden></div>
+      <div id="board-hint">输出钉按住<b>拖到</b>输入钉连线 · 双击导线加节点 · 右键删线 · 空白拖拽框选 · 空格/中键/右键拖拽平移 · 滚轮缩放 · 点输入端切换 −/0/+</div>
       <div class="tri-legend"><i class="t neg">−</i><i class="t zero">0</i><i class="t pos">+</i></div>
     </div>
 
@@ -166,11 +169,13 @@ HLT   标签写为  L:  注释用 #</pre>
     <div class="win-kicker">玩法说明</div>
     <h3>像《图灵完备》那样，从门搭到 CPU —— 只是这里是三进制</h3>
     <ol>
-      <li><b>三态：</b>每根线都是 <span class="t neg">−</span> / <span class="t zero">0</span> / <span class="t pos">+</span>。点左轨蓝色输入端切换。</li>
-      <li><b>连线：</b>从<b>输出钉（右）</b>拖到<b>输入钉（左）</b>，直角走线。点线可删，Del 删选中。</li>
+      <li><b>三态：</b>每根线都是 <span class="t neg">−</span> / <span class="t zero">0</span> / <span class="t pos">+</span>。点输入端切换。</li>
+      <li><b>连线：</b>按住<b>输出钉</b>拖到<b>输入钉</b>松手（点两下也行），直角走线。</li>
+      <li><b>改线：</b>双击导线添加可拖动的导线节点；右键点导线删除；节点右键删除该节点。</li>
+      <li><b>选择：</b>空白处拖拽框选，Shift 加选；Delete 删除选中；Esc 取消连线/选择。</li>
+      <li><b>视图：</b>空格/中键/右键拖拽平移，滚轮缩放。Ctrl+Z/Y 撤销/重做，Ctrl+C/V 复制粘贴。</li>
       <li><b>过关：</b>底部测试条列出全部用例，点右上「运行测试」全绿即过关，解锁新标准件。</li>
       <li><b>时钟：</b>含触发器的关用「滴答」推进，序列测试每步自动滴答。</li>
-      <li><b>路线图是独立页面</b>，左上「路线图」随时返回。</li>
     </ol>
     <div class="win-btns"><button id="btn-help-close" class="run-btn">开始搭建</button></div>
   </div>

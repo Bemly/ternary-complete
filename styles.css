@@ -194,3 +194,16 @@ html,body{margin:0;padding:0;background:var(--bg);color:var(--txt);font-family:'
   #level-desc{display:none} #io-legend{display:none}
   #palette-rail{width:132px} .drawer-cols{grid-template-columns:1fr} .cpu-cols{grid-template-columns:1fr}
 }
+
+/* —— 全站零圆角（强制） —— */
+*,*::before,*::after{border-radius:0 !important}
+
+/* —— 布线舞台（平移/缩放） —— */
+#stage{position:absolute;left:0;top:0;width:4000px;height:4000px;transform-origin:0 0}
+#wires{position:absolute;left:0;top:0;width:4000px;height:4000px;z-index:1}
+#board{position:absolute;left:0;top:0;width:4000px;height:4000px;z-index:2}
+#select-box{position:absolute;border:1px solid var(--amber);background:rgba(255,183,77,.12);z-index:8;pointer-events:none}
+#wires path.wire.sel{stroke:#fff !important}
+#wires rect.wp{fill:#14171d;stroke:var(--amber);stroke-width:2;cursor:grab}
+#wires rect.wp:hover{fill:var(--amber)}
+#wires rect.wp.sel{fill:var(--amber)}
