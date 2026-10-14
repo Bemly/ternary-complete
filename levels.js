@@ -114,9 +114,9 @@ const LEVELS = [
 
 { id:'t2_fadd', ch:'2 · 算术', name:'全加器：会进位的加法', kind:'circuit',
   desc:'搭建全加器：S=(A+B+Ci) 的和位，Co 为新进位。允许使用已解锁的半加器 HADD。',
-  theory:'标准结构：<code>第一次 HADD(A,B)→s1,c1；第二次 HADD(s1,Ci)→S,c2；Co=max(c1,c2)</code>。c1、c2 不会同时非零（可证），所以取大即是“进位合并”。27 行全过。',
+  theory:'标准结构：<code>第一次 HADD(A,B)→s1,c1；第二次 HADD(s1,Ci)→S,c2；第三次 HADD(c1,c2) 取和得 Co</code>（它的进位恒为 0，直接弃掉）。c1、c2 不会同号非零（可证），所以它俩的和就是新进位。注意二进制里进位合并用或门，是因为进位只有 0/1；在三进制里进位可正可负，取大会把 −1 吃掉，比如 A=B=Ci=−1 时总和 −3，进位应为 − 而 max 给出 0。27 行全过。',
   inputs:['A','B','Ci'], outputs:['S','Co'], palette:['STI','NTI','PTI','ISP','ISN','ISZ','TMIN','TMAX','TNAND','TNOR','MUX','DEC','CMP','HADD','C_M','C_Z','C_P'],
-  hint:'摆 2 个 HADD + 1 个 TMAX，按 theory 连接。Ci 直接进第二个 HADD。',
+  hint:'摆 3 个 HADD：前两个算和（Ci 进第二个），第三个把两次进位 c1、c2 相加，取它的和得 Co。',
   win:'FADD 解锁！可以搭多位加法器了。',
   tests:()=>enumInputs(3).map(r=>{const f=fullAdd(r[0],r[1],r[2]);return{in:r,out:[f.sum,f.cout]};}) },
 
@@ -154,7 +154,7 @@ const LEVELS = [
   hint:'需要 2 个 REG（存Q0/Q1）+ 1 个 ADD2（Q+常量[+,0]）+ 2 个 MUX（EN 选择保持/更新）。常量用 C_P(低+/恒+)、C_Z(高0)。先让 EN=+ 连转验证，再补 MUX。',
   win:'计数器完成！PC（程序计数器）就是它 + 跳转改写。',
   steps:()=>{
-    const seq=[[0,0],[1,0],[-1,1],[0,1],[1,1],[-1,-1],[0,-1],[1,-1],[0,0]];
+    const seq=[[0,0],[1,0],[-1,1],[0,1],[1,1],[-1,-1],[0,-1],[1,-1],[-1,0],[0,0]];
     const st=[{in:[-1],out:[0,0]}];
     for(let i=1;i<seq.length;i++) st.push({in:[1],out:seq[i]});
     st.push({in:[-1],out:seq[seq.length-1]});

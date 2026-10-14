@@ -294,6 +294,23 @@ function win(lv) {
   $('win-modal').hidden = false;
 }
 
+$('btn-ref').onclick = () => {
+  const lv = LEVELS.find(l => l.id === S.cur);
+  if (!lv) return;
+  if (!confirm(t('refConfirm'))) return;
+  saveCurrent();
+  if (lv.kind === 'program') {
+    const en = (LANG === 'en' && LEVEL_EN[lv.id] && LEVEL_EN[lv.id].starter) ? LEVEL_EN[lv.id].starter : null;
+    const code = en || lv.starter || '';
+    $('cpu-code').value = code;
+    S.code[S.cur] = code; persist();
+    cpuReset(); renderCpuTestsPreview(lv);
+    $('btn-run').click();
+  } else if (loadRefSolution(S.cur)) {
+    $('btn-run').click();
+  }
+};
+
 $('btn-run').onclick = () => {
   const lv = LEVELS.find(l => l.id === S.cur);
   if (!lv) return;

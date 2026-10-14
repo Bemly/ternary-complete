@@ -16,6 +16,9 @@
 - `i18n.js` ：界面语言字典 `I18N`（中英双份）+ `t()` 取词 + `setLang()` 切换（顶栏语言按钮，`localStorage` 记忆）
 - `levels_en.js` ：18 关英文覆写 `LEVEL_EN` + 章节名 `CHAPTERS_EN` + 元件英文名 `NAME_EN`/`DESC_EN`
   （中文原文留在 `levels.js`，英文运行时覆写，用 `LText()`/`compName()`/`compDesc()` 取词）
+- `solutions.js` ：18 关参考解（16 关电路规格 `REF_SPEC` + `specToCircuit()` 物化 + `loadRefSolution()` 载入；
+  2 关汇编复用已验证 starter）。工具条「参考解」按钮载入后自动跑测试。
+  `scripts/check_solutions.js` 用同一份规格做全关 headless 回归，元件语义改动后必跑
 - `scripts/check_terms.py` ：名称检测脚本（用法见下）。`scripts/install-hooks.sh` 负责把它装成
   `.git/hooks/pre-commit`，注意 hooks 目录本身不进版本库，换机器克隆后重跑一次安装脚本
 
@@ -61,6 +64,9 @@ refs = set(_re.findall(r\"\\\$\('([^']+)'\)\", js)) | set(_re.findall(r'getEleme
 missing = sorted(r for r in refs if r not in ids)
 print('missing:', missing if missing else 'none')
 "
+
+# 全关参考解回归（元件语义改动后必跑）
+node scripts/check_solutions.js
 
 # 逻辑回归（半加/MUX/REG/汇编参考解；i18n 字典键一致）
 node -e "
