@@ -47,7 +47,7 @@ t1_mux: { nodes: [
   { t: 'NTI', x: 198, y: 88 }, { t: 'PTI', x: 198, y: 220 },
   { t: 'STI', x: 374, y: 132 }, { t: 'TMIN', x: 550, y: 176 },
   { t: 'STI', x: 374, y: 308 }, { t: 'TMIN', x: 198, y: 396 },
-  { t: 'TMIN', x: 374, y: 440 }, { t: 'TMIN', x: 550, y: 440 },
+  { t: 'TMIN', x: 374, y: 418 }, { t: 'TMIN', x: 550, y: 440 },
   { t: 'TMAX', x: 374, y: 550 }, { t: 'TMAX', x: 550, y: 550 },
 ], wires: [
   { f: ['in', 0, 'Q'], t: ['g', 0, 'A'] },
@@ -112,7 +112,7 @@ t1_dec: { nodes: [
 t2_hadd: { nodes: [
   { t: 'MUX', x: 242, y: 88 }, { t: 'MUX', x: 242, y: 242 }, { t: 'MUX', x: 462, y: 176 },
   { t: 'MUX', x: 242, y: 418 }, { t: 'MUX', x: 242, y: 572 }, { t: 'MUX', x: 462, y: 506 },
-  { t: 'C_P', x: 110, y: 132 }, { t: 'C_M', x: 110, y: 352 }, { t: 'C_Z', x: 110, y: 528 },
+  { t: 'C_P', x: 150, y: 44 }, { t: 'C_M', x: 110, y: 352 }, { t: 'C_Z', x: 110, y: 528 },
 ], wires: [
   { f: ['in', 0, 'Q'], t: ['g', 2, 'S'] },
   { f: ['in', 0, 'Q'], t: ['g', 5, 'S'] },
@@ -162,7 +162,7 @@ t2_add2: { nodes: [
   { f: ['in', 2, 'Q'], t: ['g', 0, 'B'] },
   { f: ['g', 0, 'S'], t: ['out', 0, 'A'] },
   { f: ['g', 0, 'C'], t: ['g', 1, 'Ci'] },
-  { f: ['in', 1, 'Q'], t: ['g', 1, 'A'] },
+  { f: ['in', 1, 'Q'], t: ['g', 1, 'A'], pts: [[200, 120], [452, 120]] },
   { f: ['in', 3, 'Q'], t: ['g', 1, 'B'] },
   { f: ['g', 1, 'S'], t: ['out', 1, 'A'] },
   { f: ['g', 1, 'Co'], t: ['out', 2, 'A'] },
@@ -194,10 +194,10 @@ s3_reg: { nodes: [
 ] },
 // s3_cnt: next = ADD2(Q, +1)，EN 经 MUX 选择保持/更新
 s3_cnt: { nodes: [
-  { t: 'REG1', x: 286, y: 132 }, { t: 'REG1', x: 286, y: 330 },
-  { t: 'ADD2', x: 506, y: 220 },
-  { t: 'MUX', x: 418, y: 110 }, { t: 'MUX', x: 418, y: 308 },
-  { t: 'C_P', x: 110, y: 88 }, { t: 'C_Z', x: 110, y: 198 },
+  { t: 'REG1', x: 264, y: 132 }, { t: 'REG1', x: 264, y: 330 },
+  { t: 'ADD2', x: 528, y: 220 },
+  { t: 'MUX', x: 418, y: 110 }, { t: 'MUX', x: 418, y: 374 },
+  { t: 'C_P', x: 176, y: 88 }, { t: 'C_Z', x: 110, y: 286 },
 ], wires: [
   { f: ['in', 0, 'Q'], t: ['g', 3, 'S'] },
   { f: ['in', 0, 'Q'], t: ['g', 4, 'S'] },
@@ -220,9 +220,9 @@ s3_cnt: { nodes: [
 ] },
 // s3_mem: DEC 译码写选 + 3×REG + MUX 读出
 s3_mem: { nodes: [
-  { t: 'DEC', x: 176, y: 176 }, { t: 'ISP', x: 176, y: 396 },
+  { t: 'DEC', x: 176, y: 176 }, { t: 'ISP', x: 198, y: 396 },
   { t: 'TMIN', x: 352, y: 110 }, { t: 'TMIN', x: 352, y: 242 }, { t: 'TMIN', x: 352, y: 374 },
-  { t: 'REG1', x: 506, y: 88 }, { t: 'REG1', x: 506, y: 220 }, { t: 'REG1', x: 506, y: 352 },
+  { t: 'REG1', x: 506, y: 88 }, { t: 'REG1', x: 484, y: 220 }, { t: 'REG1', x: 506, y: 352 },
   { t: 'MUX', x: 630, y: 220 },
 ], wires: [
   { f: ['in', 1, 'Q'], t: ['g', 0, 'S'] },
@@ -242,7 +242,7 @@ s3_mem: { nodes: [
   { f: ['g', 5, 'Q'], t: ['g', 8, 'Dm'] },
   { f: ['g', 6, 'Q'], t: ['g', 8, 'Dz'] },
   { f: ['g', 7, 'Q'], t: ['g', 8, 'Dp'] },
-  { f: ['in', 1, 'Q'], t: ['g', 8, 'S'] },
+  { f: ['in', 1, 'Q'], t: ['g', 8, 'S'], pts: [[170, 60], [642, 60]] },
   { f: ['g', 8, 'Y'], t: ['out', 0, 'A'] },
 ] },
 // c4_alu: Y = MUX(OP, HADD.S, TMIN, TMAX)
@@ -287,7 +287,7 @@ function specToCircuit(lv, spec) {
     : ref[0] === 'out' ? { nid: outIds[ref[1]], pin: ref[2] }
     : { nid: gIds[ref[1]], pin: ref[2] };
   for (const w of spec.wires) {
-    wires.push({ wid: wid++, from: res(w.f), to: res(w.t), pts: [] });
+    wires.push({ wid: wid++, from: res(w.f), to: res(w.t), pts: (w.pts || []).map(p => ({ x: p[0], y: p[1] })) });
   }
   return { nodes, wires, nidSeq: nid, widSeq: wid };
 }

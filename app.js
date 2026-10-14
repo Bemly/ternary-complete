@@ -480,3 +480,10 @@ $('btn-lang').textContent = t('langBtn');
 renderTree();
 showMap();
 if (!store.load().done?.length) $('help-modal').hidden = false;
+// webfont 异步到达会改变端子高度，就绪后重排一次走线，避免几何漂移
+if (document.fonts && document.fonts.ready) {
+  document.fonts.ready.then(() => {
+    try { Editor.refresh(); } catch {}
+    try { renderTree(); } catch {}
+  });
+}

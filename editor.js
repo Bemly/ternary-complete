@@ -1101,6 +1101,30 @@ const Editor = {
     }
     return segs;
   },
+  // 节点包络盒（世界坐标，往外扩 pad），走线避让障碍用
+  nodeBox(nid, pad = 10) {
+    const n = this.nodeById(nid);
+    if (!n) return null;
+    let w = 0, h = 0;
+    const el = this.elBoard ? this.elBoard.querySelector(`[data-nid="${nid}"]`) : null;
+    if (el && el.offsetWidth) { w = el.offsetWidth; h = el.offsetHeight; }
+    else if (n.type === 'INPUT' || n.type === 'OUTPUT') { w = 96; h = 110; }
+    else { try { const s = this.shapeOf(n.type); w = s.w; h = s.h + 24; } catch { w = 120; h = 80; } }
+    return { l: n.x - pad, t: n.y - pad, r: n.x + w + pad, b: n.y + h + pad };
+  },
+  // 轴对齐线段是否穿入矩形内部（擦边、点触不算）
+  segHitsBox(s, r) {
+    const x1 = s.p.x, y1 = s.p.y, x2 = s.q.x, y2 = s.q.y;
+    if (y1 === y2) {
+      if (!(y1 > r.t && y1 < r.b)) return false;
+      return Math.min(Math.max(x1, x2), r.r) - Math.max(Math.min(x1, x2), r.l) > 0;
+    }
+    if (x1 === x2) {
+      if (!(x1 > r.l && x1 < r.r)) return false;
+      return Math.min(Math.max(y1, y2), r.b) - Math.max(Math.min(y1, y2), r.t) > 0;
+    }
+    return !(Math.min(x1, x2) > r.r || Math.max(x1, x2) < r.l || Math.min(y1, y2) > r.b || Math.max(y1, y2) < r.t);
+  },
   // 自动走线：无手工节点的导线在候选走道里挑一条与异网零重叠的。
   // 有手工节点的线固定不动（用户负责）。返回 Map(wid → 拐点表，含首尾）。
   planAllRoutes() {
@@ -1122,33 +1146,69 @@ const Editor = {
         for (const s of this.wireSegsOf(w, pts)) pool.push(s);
       }
     }
+    const boxes = new Map();
+    for (const n of this.circuit.nodes) {
+      const b = this.nodeBox(n.nid);
+      if (b) boxes.set(n.nid, b);
+    }
     for (const w of [...W].sort((a, b) => a.wid - b.wid)) {
       if (plan.has(w.wid)) continue;
       const ab = pinsOf(w);
       if (!ab) continue;
       const [A, B] = ab;
       const net = w.from.nid + ':' + w.from.pin;
+      const obs = [...boxes.entries()].filter(([id]) => id !== w.from.nid && id !== w.to.nid).map(([, b]) => b);
       const midX = (A.x + B.x) / 2, midY = (A.y + B.y) / 2;
       const cands = [
         { pts: [{ x: A.x, y: A.y }, { x: B.x, y: A.y }, { x: B.x, y: B.y }], pen: 0 },
         { pts: [{ x: A.x, y: A.y }, { x: A.x, y: B.y }, { x: B.x, y: B.y }], pen: 1 },
       ];
-      for (const k of [1, -1, 2, -2, 3, -3]) {
-        const L = midX + k * GRID, M = midY + k * GRID;
-        cands.push({ pts: [{ x: A.x, y: A.y }, { x: L, y: A.y }, { x: L, y: B.y }, { x: B.x, y: B.y }], pen: 2 + Math.abs(k) });
-        cands.push({ pts: [{ x: A.x, y: A.y }, { x: A.x, y: M }, { x: B.x, y: M }, { x: B.x, y: B.y }], pen: 2 + Math.abs(k) });
+      const laneSet = new Set();
+      const addLane = (L, basePen) => {
+        L = Math.round(L);
+        if (laneSet.has(L)) return;
+        laneSet.add(L);
+        const dist = Math.min(Math.abs(L - midX), Math.abs(L - A.x), Math.abs(L - B.x));
+        cands.push({ pts: [{ x: A.x, y: A.y }, { x: L, y: A.y }, { x: L, y: B.y }, { x: B.x, y: B.y }], pen: basePen + dist / GRID });
+      };
+      const laneSetV = new Set();
+      const addLaneV = (M, basePen) => {
+        M = Math.round(M);
+        if (laneSetV.has(M)) return;
+        laneSetV.add(M);
+        const dist = Math.min(Math.abs(M - midY), Math.abs(M - A.y), Math.abs(M - B.y));
+        cands.push({ pts: [{ x: A.x, y: A.y }, { x: A.x, y: M }, { x: B.x, y: M }, { x: B.x, y: B.y }], pen: basePen + dist / GRID });
+      };
+      for (const k of [1, -1, 2, -2, 3, -3, 4, -4, 5, -5]) addLane(midX + k * GRID, 2);
+      for (const k of [1, 2, 3]) { addLane(A.x + k * GRID, 2); addLane(A.x - k * GRID, 2); addLane(B.x + k * GRID, 2); addLane(B.x - k * GRID, 2); }
+      for (const k of [1, -1, 2, -2, 3, -3]) addLaneV(midY + k * GRID, 2);
+      for (const k of [1, 2, 3]) { addLaneV(A.y + k * GRID, 2); addLaneV(A.y - k * GRID, 2); addLaneV(B.y + k * GRID, 2); addLaneV(B.y - k * GRID, 2); }
+      // 外环总线：实在没道就从所有障碍的外面绕（上下左右各一条）
+      let minL = Infinity, minT = Infinity, maxR = -Infinity, maxB = -Infinity;
+      for (const [, r] of boxes) {
+        if (r.l < minL) minL = r.l; if (r.t < minT) minT = r.t;
+        if (r.r > maxR) maxR = r.r; if (r.b > maxB) maxB = r.b;
+      }
+      if (isFinite(minL)) {
+        const T = minT - GRID, Bo = maxB + GRID, L = minL - GRID, R = maxR + GRID;
+        cands.push({ pts: [{ x: A.x, y: A.y }, { x: A.x, y: T }, { x: B.x, y: T }, { x: B.x, y: B.y }], pen: 8 });
+        cands.push({ pts: [{ x: A.x, y: A.y }, { x: A.x, y: Bo }, { x: B.x, y: Bo }, { x: B.x, y: B.y }], pen: 8 });
+        cands.push({ pts: [{ x: A.x, y: A.y }, { x: L, y: A.y }, { x: L, y: B.y }, { x: B.x, y: B.y }], pen: 8 });
+        cands.push({ pts: [{ x: A.x, y: A.y }, { x: R, y: A.y }, { x: R, y: B.y }, { x: B.x, y: B.y }], pen: 8 });
       }
       let best = cands[0], bestScore = Infinity;
       for (const c of cands) {
-        let bad = 0;
+        let bad = 0, cross = 0;
         for (const s of this.wireSegsOf(w, c.pts)) {
           for (const o of pool) {
             if (o.net === net) continue;
             if (this.overlapLen(s, o) > 6) { bad++; break; }
           }
-          if (bad) break;
+          if (!bad) for (const r of obs) {
+            if (this.segHitsBox(s, r)) { cross++; break; }
+          }
         }
-        const score = bad * 1000 + c.pen;
+        const score = bad * 1000 + cross * 150 + c.pen;
         if (score < bestScore) { bestScore = score; best = c; }
       }
       plan.set(w.wid, best.pts);
