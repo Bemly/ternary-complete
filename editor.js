@@ -562,7 +562,8 @@ const Editor = {
           else { txt = outs.map(x => x === null ? '·' : T.sym(x)).join(' '); v = null; }
         }
         badge.textContent = txt;
-        badge.className = 'val ' + (v === null ? '' : T.cls(v));
+        // 门符号的值牌靠 .nval 绝对定位，重写类名时必须保留，否则会掉进文档流把符号体顶下去
+        badge.className = (el.classList.contains('gate') ? 'nval ' : '') + 'val ' + (v === null ? '' : T.cls(v));
       }
       el.querySelectorAll('.pin').forEach(pe => {
         const pin = pe.dataset.pin;
@@ -695,7 +696,7 @@ const Editor = {
       el.className = 'node gate';
       el.dataset.nid = n.nid;
       el.style.width = s.w + 'px';
-      el.innerHTML = `<div class="ntag">${d.name} <span>${d.en}</span></div><div class="nval val">…</div>` +
+      el.innerHTML = `<div class="ntag" title="${d.name} ${d.en}">${d.name}</div><div class="nval val">…</div>` +
         `<svg width="${s.w}" height="${s.h}" viewBox="0 0 ${s.w} ${s.h}">${s.svg}</svg>`;
       const PT = 24; // 名牌条高度，钉坐标整体下移
       (d.inputs || []).forEach((p, i) => el.appendChild(this.pinEl(n, p, 'in', true, { x: s.inA[i].x, y: s.inA[i].y + PT })));
