@@ -2,15 +2,17 @@
  *
  * 键鼠操作（对标《图灵完备》）：
  * - 按住输出钉 → 拖到输入钉松手：连线（点两下也行）；Esc 取消
- * - 双击导线：添加可拖动的导线节点；拖动节点改线；右键点节点删除该节点
+ * - 按住导线本体拖拽：抓取点即时弯折改走向；双击加节点；右键点节点删该节点
  * - 右键点导线：删除该导线；单击导线：选中（Delete 删除）
- * - 空白处拖拽：框选（Shift 加选）；单击空白：取消选择；拖动元件：多选一起搬（8px 吸附）
+ * - 空白处拖拽：框选（Shift 加选）；单击空白：取消选择；拖动元件：多选一起搬（22px 网格吸附）
  * - 空格/中键/右键拖拽：平移画布；滚轮：以光标为中心缩放
  * - Delete：删除选中；Ctrl+Z / Ctrl+Y（Shift+Z）：撤销/重做；Ctrl+C/V：复制粘贴；Ctrl+A：全选
  */
 'use strict';
 
 const WORLD = 4000;
+const GRID = 22; // 点阵间距：元件、导线节点、走线弯折全部严格吸附
+const snapG = v => Math.round(v / GRID) * GRID;
 
 const Editor = {
   circuit: null, level: null,
@@ -74,12 +76,18 @@ const Editor = {
       const g = e.target.closest('[data-wid]');
       if (g) this.addWaypoint(Number(g.dataset.wid), this.toWorld(e.clientX, e.clientY));
     });
-    // 导线节点拖拽（委托）
+    // 导线节点拖拽（委托）；导线本体按下拖拽 = 抓取改走向
     this.elWires.addEventListener('pointerdown', (e) => {
       const wp = e.target.closest('[data-wp]');
       if (wp) {
         e.stopPropagation();
         this.dragWaypoint(Number(wp.dataset.wid), Number(wp.dataset.idx), e);
+        return;
+      }
+      const g = e.target.closest('[data-wid]');
+      if (g && e.button === 0) {
+        e.stopPropagation();
+        this.bendWireAt(Number(g.dataset.wid), e);
       }
     });
     // 右键：点线删线 / 点节点删节点 / 否则取消
@@ -257,7 +265,7 @@ const Editor = {
           this.elWrap.getBoundingClientRect().left + this.elWrap.clientWidth / 2,
           this.elWrap.getBoundingClientRect().top + this.elWrap.clientHeight / 2 - 40
         );
-        const n = this.addNode(k, Math.round(w.x - 60 + Math.random() * 60), Math.round(w.y + Math.random() * 60));
+        const n = this.addNode(k, snapG(w.x - 60 + Math.random() * 80), snapG(w.y + Math.random() * 80));
         this.selected = [n.nid]; this.selectedWire = null; this.refresh();
       };
       pal.appendChild(b);
@@ -347,7 +355,7 @@ const Editor = {
     const map = {};
     const fresh = [];
     for (const n of this.clipboard.nodes) {
-      const c = { ...n, nid: this.nidSeq++, x: Math.round(w0.x + n.x - 60), y: Math.round(w0.y + n.y - 40) };
+      const c = { ...n, nid: this.nidSeq++, x: snapG(w0.x + n.x - 60), y: snapG(w0.y + n.y - 40) };
       delete c.ioName;
       map[n.nid] = c.nid;
       this.circuit.nodes.push(c); fresh.push(c.nid);
@@ -359,7 +367,7 @@ const Editor = {
         wid: this.widSeq++,
         from: { nid: map[w.from.nid], pin: w.from.pin },
         to: { nid: map[w.to.nid], pin: w.to.pin },
-        pts: w.pts.map(p => ({ x: Math.round(w0.x + p.x - 60), y: Math.round(w0.y + p.y - 40) })),
+        pts: w.pts.map(p => ({ x: snapG(w0.x + p.x - 60), y: snapG(w0.y + p.y - 40) })),
       });
     }
     this.selected = fresh; this.selectedWire = null;
@@ -721,7 +729,7 @@ const Editor = {
       (d.outputs || []).forEach((p, i) => el.appendChild(this.pinEl(n, p, 'out', true, { x: s.outA[i].x, y: s.outA[i].y + PT })));
     }
     // 拖动（多选联动，8px 吸附）
-    const snap = v => Math.round(v / 8) * 8;
+    const snap = snapG;
     let sx = 0, sy = 0, startPos = null, dragging = false, moved = false, histPushed = false;
     el.addEventListener('pointerdown', (e) => {
       if (e.target.closest('.pin') || e.button !== 0) return;
@@ -824,7 +832,7 @@ const Editor = {
       if (d < bd) { bd = d; best = i; }
     }
     this.pushHistory();
-    w.pts.splice(best, 0, { x: Math.round(pt.x / 4) * 4, y: Math.round(pt.y / 4) * 4 });
+    w.pts.splice(best, 0, { x: snapG(pt.x), y: snapG(pt.y) });
     this.selectedWp = { wid, idx: best };
     this.selectedWire = null;
     this.refresh();
@@ -844,13 +852,55 @@ const Editor = {
     this.selectedWp = { wid, idx }; this.selectedWire = null;
     const move = (ev) => {
       const p = this.toWorld(ev.clientX, ev.clientY);
-      w.pts[idx] = { x: Math.round(p.x / 4) * 4, y: Math.round(p.y / 4) * 4 };
+      w.pts[idx] = { x: snapG(p.x), y: snapG(p.y) };
       this.drawWires();
     };
     const up = () => {
       window.removeEventListener('pointermove', move);
       window.removeEventListener('pointerup', up);
       this.refresh();
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+  },
+  // 按住导线本体拖拽：抓取点即时变成可拖的弯折点（对标图灵完备的手感）
+  bendWireAt(wid, e) {
+    const w = this.circuit.wires.find(x => x.wid === wid);
+    if (!w) return;
+    if (!Array.isArray(w.pts)) w.pts = [];
+    const a = this.wirePoint(w.from.nid, w.from.pin, 'out');
+    const b = this.wirePoint(w.to.nid, w.to.pin, 'in');
+    if (!a || !b) return;
+    const grab = this.toWorld(e.clientX, e.clientY);
+    const poly = [a, ...w.pts, b];
+    let best = 0, bd = Infinity;
+    for (let i = 0; i < poly.length - 1; i++) {
+      const d = this.segDist(grab, poly[i], poly[i + 1]);
+      if (d < bd) { bd = d; best = i; }
+    }
+    const sx = e.clientX, sy = e.clientY;
+    let moved = false, idx = -1;
+    const move = (ev) => {
+      if (!moved && Math.abs(ev.clientX - sx) + Math.abs(ev.clientY - sy) <= 4) return;
+      if (!moved) {
+        moved = true;
+        this.pushHistory();
+        w.pts.splice(best, 0, { x: snapG(grab.x), y: snapG(grab.y) });
+        idx = best;
+        this.selectedWp = { wid, idx }; this.selectedWire = null;
+        this.selected = [];
+        this.suppressClick = true;
+        setTimeout(() => this.suppressClick = false, 0);
+      }
+      const p = this.toWorld(ev.clientX, ev.clientY);
+      w.pts[idx] = { x: snapG(p.x), y: snapG(p.y) };
+      this.drawWires();
+    };
+    const up = () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      if (moved) this.refresh();
+      // 未拖动：放手，后续 click 事件走选中逻辑
     };
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', up);
