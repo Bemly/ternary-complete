@@ -24,12 +24,39 @@ function LText(lv, f) {
 function chIndex(lv) { return Math.max(0, CHAPTERS.indexOf(lv.ch)); }
 function chName(i) { return chList()[i] || ''; }
 
+// 路线图节点符号：各关代表元件的本体（复用布线台 shapeOf），特殊关用定制 glyph
+function mapShape(id) {
+  const ST = 'stroke:#8b94a7;stroke-width:1.6;fill:#2b323f';
+  const TXT = 'fill:#c6ccda;font-family:JetBrains Mono,monospace;text-anchor:middle';
+  const custom = {
+    t0_wire: { w: 120, h: 48, svg: `<path d="M8 36 H56 V12 H112" stroke="#8b94a7" stroke-width="3" fill="none"/><rect x="4" y="32" width="8" height="8" fill="#ffa726"/><rect x="52" y="8" width="8" height="8" fill="#ffa726"/><rect x="108" y="8" width="8" height="8" fill="#ffa726"/>` },
+    s3_cnt: { w: 72, h: 64, svg: `<circle cx="36" cy="32" r="24" style="${ST}"/><text x="36" y="38" style="${TXT}" font-size="16">+1</text>` },
+    s3_mem: { w: 88, h: 64, svg: `<rect x="12" y="8" width="64" height="48" style="${ST}"/><line x1="12" y1="24" x2="76" y2="24" stroke="#4a5468" stroke-width="1.2"/><line x1="12" y1="40" x2="76" y2="40" stroke="#4a5468" stroke-width="1.2"/><rect x="16" y="13" width="6" height="6" fill="#ffa726"/><rect x="16" y="29" width="6" height="6" fill="#ffa726"/><rect x="16" y="45" width="6" height="6" fill="#ffa726"/>` },
+    c4_prog1: { w: 72, h: 64, svg: `<path d="M16 6 H44 L58 20 V58 H16 Z" style="${ST}"/><path d="M44 6 V20 H58" stroke="#4a5468" stroke-width="1.2" fill="none"/><rect x="24" y="30" width="24" height="3" fill="#7c869c"/><rect x="24" y="38" width="24" height="3" fill="#7c869c"/><rect x="24" y="46" width="15" height="3" fill="#7c869c"/>` },
+  };
+  if (id === 'c4_prog2') return custom.c4_prog1;
+  if (custom[id]) return custom[id];
+  const key = {
+    t0_sti: 'STI', t0_min: 'TMIN', t0_max: 'TMAX', t0_thr: 'PTI',
+    t1_mux: 'MUX', t1_cmp: 'CMP', t1_dec: 'DEC',
+    t2_hadd: 'HADD', t2_fadd: 'FADD', t2_add2: 'ADD2', t2_sub: 'SUB2',
+    s3_reg: 'REG1', c4_alu: 'ALU1',
+  }[id];
+  if (key && typeof Editor !== 'undefined') {
+    const sh = Editor.shapeOf(key);
+    // 常量圆端子太小不适合当地图节点，实际映射表里没有常量
+    return { w: sh.w, h: sh.h, svg: sh.svg };
+  }
+  return custom.t0_wire;
+}
+
 function renderTree() {
   const tree = $('level-tree');
   tree.innerHTML = '';
   const order = LEVELS.map(l => l.id);
   // 布线台式路线图：章节自下而上排布，关卡蛇形走线，导线直角连接
-  const MW = 1160, TOP = 100, ROW_H = 200, NW = 184, NH = 78;
+  // 节点本体是元件符号（非矩形卡片），名牌在符号下方
+  const MW = 1160, TOP = 110, ROW_H = 210, NW = 160, NH = 124;
   const nCh = CHAPTERS.length;
   const H = TOP * 2 + (nCh - 1) * ROW_H;
   const canvas = document.createElement('div');
@@ -68,14 +95,18 @@ function renderTree() {
         : lv.seq ? `${t('kSeq')} · ${lv.steps().length}${t('uSteps')}`
         : `${t('kComb')} · ${lv.tests().length}${t('uTests')}`;
       const b = document.createElement('button');
-      b.className = 'mnode' + (done ? ' done' : '') + (S.cur === lv.id ? ' cur' : '');
+      b.className = 'mcell' + (done ? ' done' : '') + (S.cur === lv.id ? ' cur' : '');
       b.disabled = !unlocked;
       b.style.left = (cx - NW / 2) + 'px';
       b.style.top = (cy - NH / 2) + 'px';
       b.style.width = NW + 'px';
-      b.innerHTML = `<span class="midx">${String(idx + 1).padStart(2, '0')}</span>` +
-        `<span class="mbody"><b>${LText(lv, 'name')}</b><small>${sub}</small></span>` +
-        `<span class="st">${done ? '✓' : unlocked ? (S.cur === lv.id ? '●' : '→') : ICONS.lock}</span>`;
+      const sh = mapShape(lv.id);
+      const sc = Math.min(150 / sh.w, 66 / sh.h);
+      const sw = Math.round(sh.w * sc), shh = Math.round(sh.h * sc);
+      b.innerHTML = `<span class="mshape"><svg width="${sw}" height="${shh}" viewBox="0 0 ${sh.w} ${sh.h}">${sh.svg}</svg></span>` +
+        `<span class="mcap"><b>${LText(lv, 'name')}</b><small>${sub}</small></span>` +
+        `<span class="midx">${String(idx + 1).padStart(2, '0')}</span>` +
+        `<span class="mst">${done ? '✓' : unlocked ? (S.cur === lv.id ? '●' : '→') : ICONS.lock}</span>`;
       b.onclick = () => loadLevel(lv.id);
       canvas.appendChild(b);
     });
