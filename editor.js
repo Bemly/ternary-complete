@@ -1152,6 +1152,38 @@ const Editor = {
     }
     return Infinity;
   },
+  // 合并判定：两段线算“重叠在一起”当且仅当平行且（共线长共干 / 近距长并行）。
+  // 共线：异网 >6px、 同网 >24px（钉根短共干豁免）；贴靠：间距 <6px 且并行 >24px，不分网。
+  // 交叉、点触、短 stub 一律不算。返回 null 或 {at}（标红点）。
+  mergeInfo(s, t) {
+    if (s.wid === t.wid) return null;
+    const EPS = 0.5;
+    const sH = Math.abs(s.p.y - s.q.y) < EPS, tH = Math.abs(t.p.y - t.q.y) < EPS;
+    if (sH !== tH) return null;
+    let gap, run, at;
+    if (sH) {
+      gap = Math.abs(s.p.y - t.p.y);
+      const lo = Math.max(Math.min(s.p.x, s.q.x), Math.min(t.p.x, t.q.x));
+      const hi = Math.min(Math.max(s.p.x, s.q.x), Math.max(t.p.x, t.q.x));
+      run = hi - lo;
+      if (run <= 0) return null;
+      at = [(lo + hi) / 2, (s.p.y + t.p.y) / 2];
+    } else {
+      gap = Math.abs(s.p.x - t.p.x);
+      const lo = Math.max(Math.min(s.p.y, s.q.y), Math.min(t.p.y, t.q.y));
+      const hi = Math.min(Math.max(s.p.y, s.q.y), Math.max(t.p.y, t.q.y));
+      run = hi - lo;
+      if (run <= 0) return null;
+      at = [(s.p.x + t.p.x) / 2, (lo + hi) / 2];
+    }
+    if (gap <= EPS) {
+      if (s.net === t.net ? run > 24 : run > 6) return { at };
+      return null;
+    }
+    if (gap < 6 && run > 24) return { at };
+    return null;
+  },
+  segMerged(s, t) { return !!this.mergeInfo(s, t); },
   wireSegsOf(w, pts) {
     const segs = [];
     for (let i = 0; i < pts.length - 1; i++) {
@@ -1267,25 +1299,20 @@ const Editor = {
         cands.push({ pts: [{ x: A.x, y: A.y }, { x: L, y: A.y }, { x: L, y: B.y }, { x: B.x, y: B.y }], pen: 8 });
         cands.push({ pts: [{ x: A.x, y: A.y }, { x: R, y: A.y }, { x: R, y: B.y }, { x: B.x, y: B.y }], pen: 8 });
       }
-      const W8 = this.routeW || (this.routeW = { bad: 1000, body: 150, xing: 30, sep: 8 });
+      const W8 = this.routeW || (this.routeW = { bad: 1000, body: 150, xing: 30, sep: 60 });
       const scoreOf = (pts) => {
         let bad = 0, crossBody = 0, xing = 0, sep = 0, len = 0;
         const segs = this.wireSegsOf(w, pts);
         for (const s of segs) len += Math.hypot(s.q.x - s.p.x, s.q.y - s.p.y);
         for (const s of segs) {
           for (const o of pool) {
-            const L = this.overlapLen(s, o);
-            if (L <= 6) continue;
-            // 同网分叉允许钉根部 ≤24px 短共干（读作焊点），异网无豁免
-            if (o.net === net && L <= 24) continue;
-            bad++; break;
+            if (this.segMerged(s, o)) { bad++; break; }
           }
-          // 同网分叉不判重叠（共干豁免），但交叉与贴近照样摊开
           for (const o of pool) {
             if (this.segCross(s, o)) { xing++; break; }
           }
           for (const o of pool) {
-            if (this.segGap(s, o) < 12) { sep++; break; }
+            if (this.segGap(s, o) < 20) { sep++; break; }
           }
           for (const r of obs) {
             if (this.segHitsBox(s, r)) { crossBody++; break; }
@@ -1440,8 +1467,8 @@ const Editor = {
     }
     return out;
   },
-  // 重叠检测：不同信号网的导线只允许交叉穿过，不允许共线重叠（>6px 才算）。
-  // 同一输出钉分叉出去的算同一信号网，不拦。返回 [{a, b, at}]（线 wid 对）。
+  // 合并检测：只允许交叉穿过；共线长共干、近距长并行都算“叠在一起”。
+  // 同网仅允许钉根部 ≤24px 短共干。返回 [{a, b, at}]（线 wid 对）。
   findOverlaps(plan) {
     if (!this.circuit) return [];
     if (!plan) plan = this.planAllRoutes();
@@ -1454,22 +1481,10 @@ const Editor = {
     const seen = new Set();
     for (let i = 0; i < segs.length; i++) for (let j = i + 1; j < segs.length; j++) {
       const s = segs[i], t = segs[j];
-      if (s.wid === t.wid) continue;
-      const L = this.overlapLen(s, t);
-      if (L <= 6) continue;
-      if (s.net === t.net && L <= 24) continue;
-      let at = null;
-      if (Math.abs(s.p.y - s.q.y) < 0.5) {
-        const lo = Math.max(Math.min(s.p.x, s.q.x), Math.min(t.p.x, t.q.x));
-        const hi = Math.min(Math.max(s.p.x, s.q.x), Math.max(t.p.x, t.q.x));
-        at = [(lo + hi) / 2, s.p.y];
-      } else {
-        const lo = Math.max(Math.min(s.p.y, s.q.y), Math.min(t.p.y, t.q.y));
-        const hi = Math.min(Math.max(s.p.y, s.q.y), Math.max(t.p.y, t.q.y));
-        at = [s.p.x, (lo + hi) / 2];
-      }
+      const mi = this.mergeInfo(s, t);
+      if (!mi) continue;
       const key = s.wid < t.wid ? s.wid + '-' + t.wid : t.wid + '-' + s.wid;
-      if (!seen.has(key)) { seen.add(key); ov.push({ a: s.wid, b: t.wid, at }); }
+      if (!seen.has(key)) { seen.add(key); ov.push({ a: s.wid, b: t.wid, at: mi.at }); }
     }
     return ov;
   },
