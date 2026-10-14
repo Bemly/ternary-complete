@@ -1236,10 +1236,9 @@ const Editor = {
         cands.push({ pts: [{ x: A.x, y: A.y }, { x: R, y: A.y }, { x: R, y: B.y }, { x: B.x, y: B.y }], pen: 8 });
       }
       const W8 = this.routeW || (this.routeW = { bad: 1000, body: 150, xing: 30, sep: 8 });
-      let best = cands[0], bestScore = Infinity;
-      for (const c of cands) {
+      const scoreOf = (pts) => {
         let bad = 0, crossBody = 0, xing = 0, sep = 0, len = 0;
-        const segs = this.wireSegsOf(w, c.pts);
+        const segs = this.wireSegsOf(w, pts);
         for (const s of segs) len += Math.hypot(s.q.x - s.p.x, s.q.y - s.p.y);
         for (const s of segs) {
           for (const o of pool) {
@@ -1258,13 +1257,155 @@ const Editor = {
             if (this.segHitsBox(s, r)) { crossBody++; break; }
           }
         }
-        const score = bad * W8.bad + crossBody * W8.body + len / 40 + segs.length * 2 + xing * W8.xing + sep * W8.sep + c.pen;
-        if (score < bestScore) { bestScore = score; best = c; }
+        return { v: bad * W8.bad + crossBody * W8.body + len / 40 + segs.length * 2 + xing * W8.xing + sep * W8.sep, bad, crossBody, xing };
+      };
+      let best = cands[0], bestScore = Infinity, bestHard = null;
+      for (const c of cands) {
+        const sc = scoreOf(c.pts);
+        const score = sc.v + c.pen;
+        if (score < bestScore) { bestScore = score; best = c; bestHard = sc; }
+      }
+      // 疑难补救：贪心仍有交叉/穿体时跑一次 A*，赢了才采纳（且不得引入新重叠）
+      if (bestHard && (bestHard.xing > 0 || bestHard.crossBody > 0)) {
+        const ar = this.astarRoute(A, B, obs, pool, net);
+        if (ar) {
+          const sc = scoreOf(ar);
+          if (sc.bad === 0 && sc.v < bestScore) { best = { pts: ar }; bestScore = sc.v; }
+        }
       }
       plan.set(w.wid, best.pts);
       for (const s of this.wireSegsOf(w, best.pts)) pool.push({ ...s, net });
     }
     return plan;
+  },
+  // 网格 A* 疑难补救：贪心走道仍有交叉/穿体时，对该线做一次方向感知最优搜索。
+  // 节点体不可进（起终点格豁免），异网线交叉/贴近按代价绕行。失败返回 null。
+  astarRoute(A, B, obsAll, poolSegs, net) {
+    const P = 11, BEND = 10, CROSS = 25, NEAR = 6, CAP = 30000;
+    const gx = v => Math.round(v / P);
+    const x0 = Math.min(A.x, B.x) - 220, y0 = Math.min(A.y, B.y) - 220;
+    const x1 = Math.max(A.x, B.x) + 220, y1 = Math.max(A.y, B.y) + 220;
+    const C0x = gx(x0), C0y = gx(y0);
+    const W = gx(x1) - C0x + 1, H = gx(y1) - C0y + 1;
+    if (W <= 1 || H <= 1 || W * H > 60000) return null;
+    const N = W * H;
+    const blocked = new Uint8Array(N);
+    const pen = new Float32Array(N);
+    const toC = (wx, wy) => [gx(wx) - C0x, gx(wy) - C0y];
+    for (const r of obsAll) {
+      const [ax, ay] = toC(r.l, r.t), [bx, by] = toC(r.r, r.b);
+      for (let cx = Math.max(0, ax); cx <= Math.min(W - 1, bx); cx++)
+        for (let cy = Math.max(0, ay); cy <= Math.min(H - 1, by); cy++)
+          blocked[cy * W + cx] = 1;
+    }
+    const paint = (cx, cy, v) => {
+      if (cx < 0 || cy < 0 || cx >= W || cy >= H) return;
+      const i = cy * W + cx;
+      if (v > pen[i]) pen[i] = v;
+      for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) {
+        if (!dx && !dy) continue;
+        const jx = cx + dx, jy = cy + dy;
+        if (jx < 0 || jy < 0 || jx >= W || jy >= H) continue;
+        const j = jy * W + jx;
+        if (NEAR > pen[j]) pen[j] = NEAR;
+      }
+    };
+    for (const s of poolSegs) {
+      if (s.net === net) continue;
+      const steps = Math.ceil(Math.hypot(s.q.x - s.p.x, s.q.y - s.p.y) / (P / 2)) || 1;
+      for (let i = 0; i <= steps; i++) {
+        const [cx, cy] = toC(s.p.x + (s.q.x - s.p.x) * i / steps, s.p.y + (s.q.y - s.p.y) * i / steps);
+        paint(cx, cy, CROSS);
+      }
+    }
+    const [sx, sy] = toC(A.x, A.y), [ex, ey] = toC(B.x, B.y);
+    const si = sy * W + sx, ei = ey * W + ex;
+    blocked[si] = 0; blocked[ei] = 0; pen[si] = 0; pen[ei] = 0;
+    const DX = [1, 0, -1, 0], DY = [0, 1, 0, -1];
+    const best = new Float64Array(N * 4).fill(Infinity);
+    const parent = new Int32Array(N * 4).fill(-1);
+    const heap = [];
+    let seq = 0;
+    const push = (f, k) => {
+      heap.push([f, seq++, k]);
+      let i = heap.length - 1;
+      while (i > 0) {
+        const p = (i - 1) >> 1;
+        if (heap[p][0] < heap[i][0] || (heap[p][0] === heap[i][0] && heap[p][1] <= heap[i][1])) break;
+        const tmp = heap[p]; heap[p] = heap[i]; heap[i] = tmp; i = p;
+      }
+    };
+    const pop = () => {
+      const top = heap[0], last = heap.pop();
+      if (heap.length) {
+        heap[0] = last;
+        let i = 0;
+        for (;;) {
+          const l = i * 2 + 1, r = l + 1;
+          let m = i;
+          const less = (a, b2) => heap[a][0] < heap[b2][0] || (heap[a][0] === heap[b2][0] && heap[a][1] < heap[b2][1]);
+          if (l < heap.length && less(l, m)) m = l;
+          if (r < heap.length && less(r, m)) m = r;
+          if (m === i) break;
+          const tmp = heap[m]; heap[m] = heap[i]; heap[i] = tmp; i = m;
+        }
+      }
+      return top;
+    };
+    const h = (x, y) => Math.abs(x - ex) + Math.abs(y - ey);
+    for (let d = 0; d < 4; d++) {
+      const k = si * 4 + d;
+      best[k] = 0; parent[k] = -2;
+      push(h(sx, sy), k);
+    }
+    let ops = 0, found = -1;
+    while (heap.length && ops++ < CAP) {
+      const [f, , k] = pop();
+      const d = k & 3, pp = k >> 2, cx = pp % W, cy = (pp / W) | 0;
+      if (f !== best[k] + h(cx, cy)) continue;
+      if (cx === ex && cy === ey) { found = k; break; }
+      for (let nd = 0; nd < 4; nd++) {
+        const nx = cx + DX[nd], ny = cy + DY[nd];
+        if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue;
+        const ni = ny * W + nx;
+        if (blocked[ni]) continue;
+        const nk = ni * 4 + nd;
+        const g = best[k] + 1 + (nd !== d ? BEND : 0) + pen[ni];
+        if (g < best[nk]) { best[nk] = g; parent[nk] = k; push(g + h(nx, ny), nk); }
+      }
+    }
+    if (found < 0) return null;
+    const cells = [];
+    for (let k = found; k >= 0; k = parent[k]) {
+      const d = k & 3, pp = k >> 2;
+      cells.push([(pp % W), (pp / W) | 0]);
+      if (parent[k] === -2) break;
+    }
+    cells.reverse();
+    // 格点天然直角：方向变化处即拐角，首尾锚定精确引脚并修直角接头
+    const wpt = ([cx, cy]) => ({ x: (C0x + cx) * P + P / 2, y: (C0y + cy) * P + P / 2 });
+    const corners = [];
+    let cdir = -1;
+    for (let i = 1; i < cells.length; i++) {
+      const dx = cells[i][0] - cells[i - 1][0], dy = cells[i][1] - cells[i - 1][1];
+      const nd = dx !== 0 ? 0 : 1;
+      if (nd !== cdir) { corners.push(wpt(cells[i - 1])); cdir = nd; }
+    }
+    corners.push(wpt(cells[cells.length - 1]));
+    const raw = [{ x: A.x, y: A.y }, ...corners, { x: B.x, y: B.y }];
+    const out = [raw[0]];
+    for (let i = 1; i < raw.length; i++) {
+      const p = out[out.length - 1], q = raw[i];
+      const dx = Math.abs(q.x - p.x) < 0.01, dy = Math.abs(q.y - p.y) < 0.01;
+      if (dx || dy) {
+        if (Math.hypot(q.x - p.x, q.y - p.y) > 0.01) out.push(q);
+      } else {
+        const j = { x: q.x, y: p.y };
+        if (Math.hypot(j.x - p.x, j.y - p.y) > 0.01) out.push(j);
+        out.push(q);
+      }
+    }
+    return out;
   },
   // 重叠检测：不同信号网的导线只允许交叉穿过，不允许共线重叠（>6px 才算）。
   // 同一输出钉分叉出去的算同一信号网，不拦。返回 [{a, b, at}]（线 wid 对）。
