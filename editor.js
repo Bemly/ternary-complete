@@ -461,37 +461,118 @@ const Editor = {
       floating ? `● 运行中 · ${floating}悬空` : '● 运行中 ✓';
   },
 
-  renderNode(n) {
-    const d = this.defOf(n);
-    const isIO = n.type === 'INPUT' || n.type === 'OUTPUT';
-    const el = document.createElement('div');
-    el.className = 'node' + (isIO ? ' io' : '') + (n.type === 'INPUT' ? ' io-in clickable' : n.type === 'OUTPUT' ? ' io-out' : '');
-    el.dataset.nid = n.nid;
-    const title = isIO ? n.ioName : d.name;
-    const en = isIO ? (n.type === 'INPUT' ? 'IN −/0/+' : 'OUT') : (d.en || '');
-    el.innerHTML = `<div class="nh"><span>${title} <span class="en">${en}</span></span><span class="val">…</span></div>` +
-      `<div class="pins"></div>${isIO ? `<div class="use">${n.type === 'INPUT' ? '点击端子切换 −/0/+' : '实时输出'}</div>` : ''}`;
-    const pinsBox = el.querySelector('.pins');
-    (d.inputs || []).forEach(p => {
-      const pe = document.createElement('div');
-      pe.className = 'pin in'; pe.dataset.pin = p; pe.dataset.dir = 'in'; pe.dataset.nid = n.nid;
-      pe.innerHTML = `<span class="pdot"></span><span class="pl">${p}</span>`;
+  // —— 标准逻辑符号（ANSI Distinctive Shape），复合块用矩形、常量用圆形端子 ——
+  shapeOf(type) {
+    const ST = 'stroke:#8b94a7;stroke-width:1.6;fill:#2b323f';
+    const BUB = 'stroke:#8b94a7;stroke-width:1.6;fill:#171a20';
+    const TXT = 'fill:#c6ccda;font-family:JetBrains Mono,monospace;font-size:11px;text-anchor:middle';
+    const spread = (n, lo, hi) => n === 1 ? [(lo + hi) / 2] : Array.from({ length: n }, (_, i) => lo + (hi - lo) * i / (n - 1));
+    // 2 输入门：AND 系 D 形 / OR 系尖拱形（+ 反相圈 = NAND / NOR）
+    if (['TMIN', 'TNAND', 'TMAX', 'TNOR'].includes(type)) {
+      const isOr = type === 'TMAX' || type === 'TNOR';
+      const bub = type === 'TNAND' || type === 'TNOR';
+      const body = isOr
+        ? `<path class="bd" d="M14 8 Q34 32 14 56 Q46 56 64 32 Q46 8 14 8 Z" style="${ST}"/>`
+        : `<path class="bd" d="M12 8 H40 A24 24 0 0 1 40 56 H12 Z" style="${ST}"/>`;
+      const outX = bub ? 72 : 64;
+      return {
+        w: 84, h: 64,
+        svg: body + (bub ? `<circle cx="68" cy="32" r="4" style="${BUB}"/>` : ''),
+        inA: spread(2, 22, 42).map(y => ({ x: isOr ? 16 : 12, y })),
+        outA: [{ x: outX, y: 32 }],
+      };
+    }
+    // 1 输入门：三角反相（STI 带圈）/ 阈值缓冲（NTI/PTI）/ 判别器（ISP/ISN/ISZ，阈值横杆位置不同）
+    if (['STI', 'NTI', 'PTI', 'ISP', 'ISN', 'ISZ'].includes(type)) {
+      const bub = type === 'STI';
+      const barY = { NTI: 40, ISN: 40, PTI: 16, ISP: 16, ISZ: 28 }[type];
+      const outX = bub ? 62 : 54;
+      return {
+        w: 76, h: 56,
+        svg: `<path class="bd" d="M14 8 L54 28 L14 48 Z" style="${ST}"/>` +
+          (bub ? `<circle cx="58" cy="28" r="4" style="${BUB}"/>` : '') +
+          (barY != null ? `<line x1="24" y1="${barY}" x2="36" y2="${barY}" stroke="#ffa726" stroke-width="2.5"/>` : ''),
+        inA: [{ x: 14, y: 28 }],
+        outA: [{ x: outX, y: 28 }],
+      };
+    }
+    // MUX：梯形
+    if (type === 'MUX') {
+      return {
+        w: 84, h: 72,
+        svg: `<polygon class="bd" points="12,6 62,14 62,58 12,66" style="${ST}"/>`,
+        inA: spread(4, 18, 57).map(y => ({ x: 12, y })),
+        outA: [{ x: 62, y: 36 }],
+      };
+    }
+    // 常量：圆形端子
+    if (['C_M', 'C_Z', 'C_P'].includes(type)) {
+      const sym = type === 'C_M' ? '−' : type === 'C_Z' ? '0' : '+';
+      return {
+        w: 56, h: 56,
+        svg: `<circle class="bd" cx="28" cy="28" r="18" style="${ST}"/><text x="28" y="33" style="${TXT}">${sym}</text>`,
+        inA: [],
+        outA: [{ x: 46, y: 28 }],
+      };
+    }
+    // 其余复合块：矩形（仿图灵完备自定义元件），名印当中
+    const d = COMP_DEFS[type];
+    const ni = d.inputs.length, no = d.outputs.length;
+    const H = Math.max(56, Math.max(ni, no) * 20 + 24);
+    return {
+      w: 120, h: H,
+      svg: `<rect class="bd" x="10" y="6" width="100" height="${H - 12}" style="${ST}"/>` +
+        `<text x="60" y="${H / 2 + 4}" style="${TXT}">${d.en}</text>`,
+      inA: spread(ni, 18, H - 18).map(y => ({ x: 10, y })),
+      outA: spread(no, 18, H - 18).map(y => ({ x: 110, y })),
+    };
+  },
+
+  pinEl(n, p, dir, edge, anchor) {
+    const pe = document.createElement('div');
+    pe.className = 'pin ' + dir; pe.dataset.pin = p; pe.dataset.dir = dir; pe.dataset.nid = n.nid;
+    pe.innerHTML = dir === 'in'
+      ? `<span class="pdot"></span><span class="pl">${p}</span>`
+      : `<span class="pl">${p}</span><span class="pdot"></span>`;
+    if (edge && anchor) { pe.style.left = anchor.x + 'px'; pe.style.top = anchor.y + 'px'; }
+    if (dir === 'in') {
       pe.addEventListener('pointerdown', (e) => e.stopPropagation());
       pe.onclick = (e) => { e.stopPropagation(); this.onPin(n.nid, p, 'in'); };
-      pinsBox.appendChild(pe);
-    });
-    (d.outputs || []).forEach(p => {
-      const pe = document.createElement('div');
-      pe.className = 'pin out'; pe.dataset.pin = p; pe.dataset.dir = 'out'; pe.dataset.nid = n.nid;
-      pe.innerHTML = `<span class="pl">${p}</span><span class="pdot"></span>`;
+    } else {
       pe.addEventListener('pointerdown', (e) => {
         e.stopPropagation();
         if (e.button !== 0) return;
         this.startWire(n.nid, p);
       });
       pe.onclick = (e) => { e.stopPropagation(); this.onPin(n.nid, p, 'out'); };
-      pinsBox.appendChild(pe);
-    });
+    }
+    return pe;
+  },
+
+  renderNode(n) {
+    const d = this.defOf(n);
+    const isIO = n.type === 'INPUT' || n.type === 'OUTPUT';
+    const el = document.createElement('div');
+    if (isIO) {
+      el.className = 'node io' + (n.type === 'INPUT' ? ' io-in clickable' : ' io-out');
+      el.dataset.nid = n.nid;
+      el.innerHTML = `<div class="nh"><span>${n.ioName} <span class="en">${n.type === 'INPUT' ? 'IN −/0/+' : 'OUT'}</span></span><span class="val">…</span></div>` +
+        `<div class="pins"></div>${n.type === 'INPUT' ? `<div class="use">点击端子切换 −/0/+</div>` : `<div class="use">实时输出</div>`}`;
+      const pinsBox = el.querySelector('.pins');
+      (d.inputs || []).forEach(p => pinsBox.appendChild(this.pinEl(n, p, 'in', false)));
+      (d.outputs || []).forEach(p => pinsBox.appendChild(this.pinEl(n, p, 'out', false)));
+    } else {
+      // 门符号：浮动名牌 + 值 + SVG 符号体 + 边缘钉
+      const s = this.shapeOf(n.type);
+      el.className = 'node gate';
+      el.dataset.nid = n.nid;
+      el.style.width = s.w + 'px';
+      el.innerHTML = `<div class="ntag">${d.name} <span>${d.en}</span></div><div class="nval val">…</div>` +
+        `<svg width="${s.w}" height="${s.h}" viewBox="0 0 ${s.w} ${s.h}">${s.svg}</svg>`;
+      const PT = 24; // 名牌条高度，钉坐标整体下移
+      (d.inputs || []).forEach((p, i) => el.appendChild(this.pinEl(n, p, 'in', true, { x: s.inA[i].x, y: s.inA[i].y + PT })));
+      (d.outputs || []).forEach((p, i) => el.appendChild(this.pinEl(n, p, 'out', true, { x: s.outA[i].x, y: s.outA[i].y + PT })));
+    }
     // 拖动（多选联动，8px 吸附）
     const snap = v => Math.round(v / 8) * 8;
     let sx = 0, sy = 0, startPos = null, dragging = false, moved = false, histPushed = false;
