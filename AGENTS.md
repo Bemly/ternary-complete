@@ -1,17 +1,18 @@
-# AGENTS.md — 三进制完备 (Ternary Complete)
+# AGENTS.md：三进制完备 (Ternary Complete)
 
 > 平衡三进制版《图灵完备》网页游戏：从 TNAND 出发，经阈值门、MUX、加法器、寄存器、内存、ALU，
 > 最终在 TRIT-3 CPU 上写汇编。共 18 关。
 
 ## 目录
 
-- `index.html` — 页面结构（路线图独立页 + 全屏布线台 + 底部测试条 + 弹窗）
-- `styles.css` — 全站样式。**禁止圆角**：所有元素 `border-radius: 0`，走线拐角走直角
-- `ternary.js` — 三值逻辑核心（STI/NTI/PTI/MIN/MAX/MUX、半加/全加、十进制⇄平衡三进制）
-- `levels.js` — 元件定义 `COMP_DEFS` + 18 关 `LEVELS`（组合用 `tests()`，时序用 `steps()`，语义均为「置输入→滴答→检查」）
-- `editor.js` — 电路编辑器 + 仿真器（求值/滴答/测试/序列化；键鼠交互对标《图灵完备》）
-- `cpu.js` — TRIT-3 CPU（3-trit 字，R0–R3，M0–M8）
-- `app.js` — 路线图/布线台视图切换、验证台、CPU 面板、存档（`localStorage`）
+- `index.html` ：页面结构（路线图独立页 + 全屏布线台 + 底部测试条 + 弹窗）
+- `styles.css` ：全站样式，见下「UI 约束」
+- `ternary.js` ：三值逻辑核心（STI/NTI/PTI/MIN/MAX/MUX、半加/全加、十进制与平衡三进制互转）
+- `levels.js` ：元件定义 `COMP_DEFS` + 18 关 `LEVELS`（组合用 `tests()`，时序用 `steps()`，语义均为「置输入，滴答，检查」）
+- `editor.js` ：电路编辑器 + 仿真器（求值/滴答/测试/序列化；键鼠交互对标《图灵完备》）
+- `cpu.js` ：TRIT-3 CPU（3-trit 字，R0-R3，M0-M8）
+- `app.js` ：路线图/布线台视图切换、验证台、CPU 面板、存档（`localStorage`）
+- `icons.js` ：内联 SVG 图标库 `ICONS`（全项目唯一图标来源，禁 emoji 用它代替）
 
 ## 工作流（强制）
 
@@ -29,7 +30,20 @@ python3 -m http.server 8000
 # 打开 http://localhost:8000
 
 # 语法检查
-node --check ternary.js && node --check levels.js && node --check cpu.js && node --check editor.js && node --check app.js
+node --check ternary.js && node --check levels.js && node --check cpu.js && node --check icons.js && node --check editor.js && node --check app.js
+
+# 破折号与 emoji 扫描（必须无输出；本命令自身用转义写法，文件内不得出现字面破折号）
+python3 -c "
+import re
+dash = chr(0x2014)
+pat = re.compile('[\U0001F300-\U0001FAFF\u2600-\u27BF\u2B00-\u2BFF\u23E9-\u23FA\u23F5\u23F8\u25B6\u25C0]')
+allow = {0x2713, 0x2717}
+files = ['index.html','app.js','editor.js','levels.js','cpu.js','ternary.js','icons.js','styles.css','AGENTS.md']
+bad_dash = [(f, i) for f in files for i, l in enumerate(open(f).read().split(chr(10)), 1) if dash in l]
+bad_emoji = [(f, i, hex(ord(c))) for f in files for i, l in enumerate(open(f).read().split(chr(10)), 1) for c in set(pat.findall(l)) if ord(c) not in allow]
+print('dash:', bad_dash if bad_dash else 'none')
+print('emoji:', bad_emoji if bad_emoji else 'none')
+"
 
 # DOM id 完整性
 python3 -c "
@@ -61,5 +75,10 @@ console.log('halfAdd(-1,-1)='+JSON.stringify(halfAdd(-1,-1)));
 - **键鼠对标《图灵完备》**（详见 `editor.js` 顶部注释）：输出钉按住拖到输入钉连线；
   双击导线添加可拖动的导线节点；右键点导线删除；空白拖拽框选；空格/中键/右键拖拽平移；
   滚轮缩放；`Delete` 删除选中；`Esc` 取消；`Ctrl+Z/Y` 撤销/重做；`Ctrl+C/V` 复制粘贴。
-- 时序语义统一为「置输入→滴答→检查输出」，改动时序关时保证用例符合该语义。
+- 时序语义统一为「置输入，滴答，检查输出」，改动时序关时保证用例符合该语义。
 - 三态配色固定：`−`=#4fc3f7、`0`=#9aa0b0、`+`=#ffa726。
+- **禁破折号**：全项目（代码注释、界面文案、文档）不得出现破折号（U+2014，单横双横皆禁），用逗号、句号或冒号改写。
+- **禁 emoji**：界面与文案不得出现任何 emoji，一律用 `icons.js` 中的内联 SVG 图标代替
+ （方形线条风，`stroke-linecap="square"`）。`✓` `✗` `→` `●` 等纯文本几何符号允许保留。
+- 提交前加检：破折号扫描（见常用命令）为空，
+  且 emoji 扫描（见常用命令）无新增。

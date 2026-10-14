@@ -152,7 +152,7 @@ const Editor = {
     window.addEventListener('resize', () => this.drawWires());
   },
 
-  // —— 视图变换 ——
+  // 视图变换
   applyView() {
     if (this.elStage) this.elStage.style.transform = `translate(${this.pan.x}px,${this.pan.y}px) scale(${this.zoom})`;
   },
@@ -161,7 +161,7 @@ const Editor = {
     return { x: (cx - wr.left - this.pan.x) / this.zoom, y: (cy - wr.top - this.pan.y) / this.zoom };
   },
 
-  // —— 历史（撤销/重做，只记录结构编辑） ——
+  // 历史（撤销/重做，只记录结构编辑）
   snapshot() { return JSON.stringify({ nodes: this.circuit.nodes, wires: this.circuit.wires, nidSeq: this.nidSeq, widSeq: this.widSeq }); },
   pushHistory() {
     if (!this.circuit) return;
@@ -366,7 +366,7 @@ const Editor = {
     this.refresh();
   },
 
-  // —— 求值（组合不动点；DFF/REG1 经 state 跨滴答） ——
+  // 求值（组合不动点；DFF/REG1 经 state 跨滴答）
   evaluate() {
     const C = this.circuit;
     const vals = {};
@@ -450,7 +450,7 @@ const Editor = {
     return [1, 2, 5, 10].includes(v) ? v : 2;
   },
 
-  // —— 时间轴：每次滴答采样输入/输出/寄存器状态 ——
+  // 时间轴：每次滴答采样输入/输出/寄存器状态
   sampleTimeline() {
     if (!this.circuit || !this.level || this.level.kind !== 'circuit') return;
     const { vals } = this.evaluate();
@@ -521,7 +521,7 @@ const Editor = {
     if (info) info.textContent = `共 ${F.length} 拍 · ${F[0].ins.length}输入 ${F[0].outs.length}输出 ${F[0].regs.length}寄存器`;
   },
 
-  // —— 输入输出总览条 ——
+  // 输入输出总览条
   renderIoPanel() {
     const box = document.getElementById('io-panel');
     if (!box || !this.circuit) return;
@@ -547,17 +547,17 @@ const Editor = {
       const ms = Math.round(1000 / this.curTps());
       this.autoTimer = setInterval(() => this.tick(), ms);
       const b = e.target || document.getElementById('btn-auto');
-      b.classList.add('on'); b.textContent = `⏸ ${this.curTps()}TPS`;
+      b.classList.add('on'); b.innerHTML = `${ICONS.pause} ${this.curTps()}TPS`;
     }
   },
   stopAuto() {
     if (this.autoTimer) clearInterval(this.autoTimer);
     this.autoTimer = null;
     const b = document.getElementById('btn-auto');
-    if (b) { b.classList.remove('on'); b.textContent = '▶ 自动'; }
+    if (b) { b.classList.remove('on'); b.innerHTML = `${ICONS.play} 自动`; }
   },
 
-  // —— 渲染 ——
+  // 渲染
   refresh() {
     if (!this.level || this.level.kind !== 'circuit') return;
     const existing = new Set([...this.elBoard.children].map(el => Number(el.dataset.nid)));
@@ -578,7 +578,7 @@ const Editor = {
         let v = null, txt = '';
         if (n.type === 'INPUT') { v = n.val; txt = T.sym(v); }
         else if (n.type === 'OUTPUT') { v = vals[n.nid]['A']; txt = v === null ? '…' : T.sym(v); }
-        else if (n.type === 'DFF' || n.type === 'REG1') { v = (n.state ?? 0); txt = T.sym(v) + ' ⌛'; }
+        else if (n.type === 'DFF' || n.type === 'REG1') { v = (n.state ?? 0); txt = T.sym(v); }
         else {
           const d = COMP_DEFS[n.type];
           const outs = (d.outputs || []).map(o => vals[n.nid][o]);
@@ -603,12 +603,12 @@ const Editor = {
     const gates = this.circuit.nodes.filter(n => n.type !== 'INPUT' && n.type !== 'OUTPUT').length;
     document.getElementById('stat-gates').textContent = gates;
     this.updateSelInfo();
-    document.getElementById('sim-state').textContent =
-      unstable ? '⚠ 组合环' :
+    document.getElementById('sim-state').innerHTML =
+      unstable ? `${ICONS.warn} 组合环` :
       floating ? `● 运行中 · ${floating}悬空` : '● 运行中 ✓';
   },
 
-  // —— 标准逻辑符号（ANSI Distinctive Shape），复合块用矩形、常量用圆形端子 ——
+  // 标准逻辑符号（ANSI Distinctive Shape），复合块用矩形、常量用圆形端子
   shapeOf(type) {
     const ST = 'stroke:#8b94a7;stroke-width:1.6;fill:#2b323f';
     const BUB = 'stroke:#8b94a7;stroke-width:1.6;fill:#171a20';
@@ -768,7 +768,7 @@ const Editor = {
     this.elBoard.appendChild(el);
   },
 
-  // —— 连线（拖拽 + 点选两用） ——
+  // 连线（拖拽 + 点选两用）
   startWire(nid, pin) {
     this.pending = { nid, pin };
     this.wiring = true;
@@ -856,7 +856,7 @@ const Editor = {
     window.addEventListener('pointerup', up);
   },
 
-  // —— 背景手势：框选 / 平移 ——
+  // 背景手势：框选 / 平移
   bgGesture(e) {
     if (e.button === 1 || e.button === 2 || this.spaceDown) { this.panGesture(e); return; }
     if (e.button !== 0) return;
@@ -1017,7 +1017,7 @@ const Editor = {
     }
   },
 
-  // —— 测试 ——
+  // 测试
   setInputs(arr) {
     const ins = this.circuit.nodes.filter(n => n.type === 'INPUT');
     arr.forEach((v, i) => { if (ins[i]) ins[i].val = v; });

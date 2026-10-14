@@ -14,7 +14,7 @@ html,body{margin:0;padding:0;background:var(--bg);color:var(--txt);font-family:'
 #bg-grid{display:none}
 .mono{font-family:var(--mono)} .dim{color:var(--dim)}
 
-/* —— 顶栏 —— */
+/* 顶栏 */
 #topbar{display:flex;align-items:center;gap:14px;height:48px;padding:0 12px;background:#0c0e12;border-bottom:1px solid #262c38;position:relative;z-index:30}
 .tb-left{display:flex;align-items:center;gap:10px;min-width:0}
 .tb-btn{background:#222835;border:1px solid var(--line2);color:var(--txt);border-radius:7px;padding:7px 12px;cursor:pointer;font-size:13px;white-space:nowrap}
@@ -36,8 +36,10 @@ html,body{margin:0;padding:0;background:var(--bg);color:var(--txt);font-family:'
 .ghost-btn{background:transparent;border:1px solid var(--line2);color:var(--dim);border-radius:7px;padding:6px 9px;cursor:pointer;font-size:12px}
 .ghost-btn:hover{color:var(--txt);border-color:var(--amber)}
 .ghost-btn.danger:hover{color:var(--bad);border-color:var(--bad)}
+.ic{width:14px;height:14px;vertical-align:-2px;flex:none}
+.tb-btn,.act-btn,.run-btn,.ghost-btn{display:inline-flex;align-items:center;gap:6px;justify-content:center}
 
-/* —— 路线图（独立全屏） —— */
+/* 路线图（独立全屏） */
 #map-view{height:calc(100vh - 48px);overflow:auto;padding:26px 30px 60px;background:radial-gradient(ellipse at 50% -10%,#1c2230 0%,var(--bg) 60%)}
 #map-view[hidden]{display:none}
 .map-head{display:flex;justify-content:space-between;align-items:flex-end;gap:20px;max-width:1180px;margin:0 auto 18px}
@@ -65,7 +67,7 @@ html,body{margin:0;padding:0;background:var(--bg);color:var(--txt);font-family:'
 .setun-note{max-width:1180px;margin:20px auto 0;border:1px dashed var(--line2);border-radius:10px;padding:12px 14px;font-size:13px;color:var(--dim);background:rgba(29,33,41,.6)}
 .setun-note b{color:var(--txt)} .setun-note strong{color:var(--pos)}
 
-/* —— 布线台 —— */
+/* 布线台 */
 #game-view{height:calc(100vh - 48px);display:flex;flex-direction:column}
 #game-view[hidden]{display:none}
 #game-toolbar{display:flex;align-items:center;gap:14px;padding:8px 12px;background:#14171d;border-bottom:1px solid #262c38}
@@ -140,7 +142,7 @@ html,body{margin:0;padding:0;background:var(--bg);color:var(--txt);font-family:'
 .node.io .use{font-size:10px;color:var(--faint);padding:5px 10px 0;font-family:'Noto Sans SC'}
 .node.clickable .val{cursor:pointer}
 
-/* —— 门符号（ANSI）：符号体本身即形状，名牌/值牌为方形浮签 —— */
+/* 门符号（ANSI）：符号体本身即形状，名牌/值牌为方形浮签 */
 .node.gate{background:none;border:0;box-shadow:none;padding:24px 0 0;min-width:0}
 .node.gate svg{display:block;overflow:visible}
 .node.gate .ntag{position:absolute;top:2px;left:0;max-width:calc(100% - 34px);overflow:hidden;text-overflow:ellipsis;font-size:11px;font-weight:700;background:#10131a;border:1px solid var(--line2);padding:2px 7px;white-space:nowrap}
@@ -212,10 +214,10 @@ html,body{margin:0;padding:0;background:var(--bg);color:var(--txt);font-family:'
   #palette-rail{width:132px} .drawer-cols{grid-template-columns:1fr} .cpu-cols{grid-template-columns:1fr}
 }
 
-/* —— 全站零圆角（强制） —— */
+/* 全站零圆角（强制） */
 *,*::before,*::after{border-radius:0 !important}
 
-/* —— 布线舞台（平移/缩放） —— */
+/* 布线舞台（平移/缩放） */
 #stage{position:absolute;left:0;top:0;width:4000px;height:4000px;transform-origin:0 0}
 #wires{position:absolute;left:0;top:0;width:4000px;height:4000px;z-index:1}
 #board{position:absolute;left:0;top:0;width:4000px;height:4000px;z-index:2}
@@ -225,12 +227,12 @@ html,body{margin:0;padding:0;background:var(--bg);color:var(--txt);font-family:'
 #wires rect.wp:hover{fill:var(--amber)}
 #wires rect.wp.sel{fill:var(--amber)}
 
-/* —— 时钟：TPS 档位 + 拍计数 —— */
+/* 时钟：TPS 档位 + 拍计数 */
 #tps-sel{background:#222835;border:1px solid var(--line2);color:var(--txt);font-family:var(--mono);font-size:12px;padding:7px 6px;cursor:pointer}
 #tick-count{font-family:var(--mono);font-size:12.5px;color:var(--amber);border:1px solid #5a4a28;padding:7px 10px;background:#14100a;white-space:nowrap}
-#btn-timeline.on{border-color:var(--amber);color:var(--amber)}
+#btn-timeline.on{background:#14100a;color:var(--amber);border-color:var(--amber)}
 
-/* —— 输入输出总览条 —— */
+/* 输入输出总览条 */
 #io-panel{position:absolute;top:10px;left:12px;z-index:5;display:flex;gap:10px;max-width:60%;flex-wrap:wrap;pointer-events:none}
 .io-group{display:flex;gap:4px;align-items:center;background:rgba(10,12,16,.88);border:1px solid var(--line2);padding:4px 7px;pointer-events:auto}
 .io-group .glab{font-family:var(--mono);font-size:10px;color:var(--faint);letter-spacing:1px}
@@ -241,7 +243,7 @@ html,body{margin:0;padding:0;background:var(--bg);color:var(--txt);font-family:'
 .io-chip.v0{color:var(--zero)}
 .io-chip.v1{color:var(--pos);border-color:var(--pos)}
 
-/* —— 信号时间轴 —— */
+/* 信号时间轴 */
 #timeline-strip{background:#10131a;border-top:1px solid #262c38;flex:none}
 .tl-head{display:flex;justify-content:space-between;align-items:center;padding:4px 12px;font-size:12px;color:var(--dim)}
 #timeline{max-height:150px;overflow:auto;padding:2px 8px 8px}

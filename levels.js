@@ -37,12 +37,12 @@ const PALETTE_GROUPS = {
   base:['TNAND','C_M','C_Z','C_P'],
 };
 
-// —— 关卡 ——
+// 关卡
 // kind: 'circuit' | 'program'
 const LEVELS = [
 { id:'t0_wire', ch:'0 · 平衡三进制', name:'初见三元：连一根线', kind:'circuit',
   desc:'把输入直接连到输出。点击左侧蓝色输入端，可以切换 − / 0 / +，观察右侧输出跟着变。',
-  theory:'<b>平衡三进制</b>只有三个数字：<code>−</code>(−1)、<code>0</code>、<code>+</code>(+1)。权重是 …9, 3, 1。如 <code>+0−</code> = 9+0−1 = 8。没有符号位 —— <b>最高位为 − 整个数就是负数</b>，取反即变号。这是 Setun 胜过二进制的地方。',
+  theory:'<b>平衡三进制</b>只有三个数字：<code>−</code>(−1)、<code>0</code>、<code>+</code>(+1)。权重是 …9, 3, 1。如 <code>+0−</code> = 9+0−1 = 8。没有符号位，<b>最高位为 − 整个数就是负数</b>，取反即变号。这是 Setun 胜过二进制的地方。',
   inputs:['X'], outputs:['Y'], palette:[],
   hint:'不需要任何门。从左侧 X 的输出钉拖一根线到右侧 Y 的输入钉即可。输入钉空着是非法状态。',
   win:'三态导线接通！三进制世界里，一根线有三种状态。',
@@ -58,7 +58,7 @@ const LEVELS = [
 
 { id:'t0_min', ch:'0 · 平衡三进制', name:'取小 TMIN：三进制与', kind:'circuit',
   desc:'用 TNAND + STI 搭出取小门：Y = min(A,B)。9 行真值表全部通过才算成功。',
-  theory:'三进制的<b>与 = 取小 ∧</b>，<b>或 = 取大 ∨</b>。把 TNAND 的输出再取反一次：<code>−(−min) = min</code>。注意：若把 + 当 1、− 当 0 且不出现 0，这张表和二进制与门一模一样 —— 三进制向下兼容二进制。',
+  theory:'三进制的<b>与 = 取小 ∧</b>，<b>或 = 取大 ∨</b>。把 TNAND 的输出再取反一次：<code>−(−min) = min</code>。注意：若把 + 当 1、− 当 0 且不出现 0，这张表和二进制与门一模一样，三进制向下兼容二进制。',
   inputs:['A','B'], outputs:['Y'], palette:['TNAND','STI'],
   hint:'先 TNAND(A,B)，再把结果过一个 STI。两级串联即可。',
   win:'TMIN 解锁！与 = 取小，或 = 取大，记住了。',
@@ -74,7 +74,7 @@ const LEVELS = [
 
 { id:'t0_thr', ch:'0 · 平衡三进制', name:'阈值门：三进制不完备的证明', kind:'circuit',
   desc:'用 PTI + STI 搭出「判正」ISP：输入为 + 才输出 +，否则输出 −。理解为什么 TNAND 一家造不出它。',
-  theory:'只用 <code>TNAND/STI/TMIN/TMAX</code> 的函数都有一个性质：<b>输入全 0 则输出必 0</b>（保零）。而 <code>PTI(0)=+</code> 打破了它 —— 所以<b>单个 TNAND 在三值逻辑中不完备</b>，必须引入<b>阈值门 NTI / PTI</b>（Setun 的物理基础）。本题：<code>ISP = STI(PTI(A))</code>：PTI 把“是不是 +”翻成 −/+，STI 再翻回来。',
+  theory:'只用 <code>TNAND/STI/TMIN/TMAX</code> 的函数都有一个性质：<b>输入全 0 则输出必 0</b>（保零）。而 <code>PTI(0)=+</code> 打破了它，所以<b>单个 TNAND 在三值逻辑中不完备</b>，必须引入<b>阈值门 NTI / PTI</b>（Setun 的物理基础）。本题：<code>ISP = STI(PTI(A))</code>：PTI 把“是不是 +”翻成 −/+，STI 再翻回来。',
   inputs:['A'], outputs:['Y'], palette:['STI','PTI','NTI','TMIN','TMAX','TNAND','C_M','C_Z','C_P'],
   hint:'A → PTI → STI → Y，仅此而已。但请读懂 theory：这是全游戏最重要的概念分叉点。',
   win:'阈值门解锁！NTI / PTI / 判正 / 判负 / 判零全部加入元件箱。三进制从此完备。',
@@ -85,7 +85,7 @@ const LEVELS = [
   theory:'做法：先用阈值门做出三根“独热”线 <code>n=ISN(S), z=ISZ(S), p=ISP(S)</code>（恰一根为 +），再门控：<code>gm=min(Dm,n)</code> 等，最后 <code>Y=max(gm,max(gz,gp))</code>。被选中的数据原样通过，其余被压成 −，取大即选中。其中 <code>ISN=NTI(S)</code>，<code>ISP=STI(PTI(S))</code>，<code>ISZ=TMIN(PTI(S),STI(NTI(S)))</code>（验证：S=0 时两路皆 +，否则必有一路 −）。',
   inputs:['S','Dm','Dz','Dp'], outputs:['Y'], palette:['STI','NTI','PTI','ISP','ISN','ISZ','TMIN','TMAX','TNAND','TNOR','C_M','C_Z','C_P'],
   hint:'分三步：① S→ISN/ISZ/ISP 得 n/z/p；② min(Dm,n)、min(Dz,z)、min(Dp,p)；③两级 TMAX 合并。ISZ 若元件箱没有就按 theory 现搭。',
-  win:'MUX 解锁！有了它，任何真值表都能“查表”实现 —— 三进制真正完备了。',
+  win:'MUX 解锁！有了它，任何真值表都能“查表”实现，三进制真正完备了。',
   tests:()=>enumInputs(4).map(r=>({in:r,out:[T.mux(r[0],r[1],r[2],r[3])]})) },
 
 { id:'t1_cmp', ch:'1 · 选择与判断', name:'比较器：天平', kind:'circuit',
@@ -106,10 +106,10 @@ const LEVELS = [
 
 { id:'t2_hadd', ch:'2 · 算术', name:'半加器：1+1=…？', kind:'circuit',
   desc:'搭建半加器：S 为和，C 为进位。注意 −1 + −1 = −2，要记成“和 +、进位 −”（因为 −2 = +1 + (−1)×3）。',
-  theory:'平衡三进制加法表：<code>S(A,B)</code> 形如 <code>[+,−,0; −,0,+; 0,+,−]</code>，<code>C</code> 仅在 (−,−)→− 与 (+,+)→+ 时非零，其余全 0 —— 进位极其稀疏，这是三进制乘法更快的原因之一。用 MUX 查表法（以 A 选三行，每行是 B 的单输入变换）可直接实现。',
+  theory:'平衡三进制加法表：<code>S(A,B)</code> 形如 <code>[+,−,0; −,0,+; 0,+,−]</code>，<code>C</code> 仅在 (−,−)→− 与 (+,+)→+ 时非零，其余全 0，进位极其稀疏，这是三进制乘法更快的原因之一。用 MUX 查表法（以 A 选三行，每行是 B 的单输入变换）可直接实现。',
   inputs:['A','B'], outputs:['S','C'], palette:['STI','NTI','PTI','ISP','ISN','ISZ','TMIN','TMAX','TNAND','TNOR','MUX','DEC','CMP','C_M','C_Z','C_P'],
   hint:'摆 2 个 MUX（都以 A 为选择）：一个查“和表”，一个查“进位表”，数据端填常量/ B 的变换。先列出 A=−/0/+ 三行分别是什么，再填。',
-  win:'HADD 解锁！进位只在同号溢出时出现 —— 三进制加法就是省。',
+  win:'HADD 解锁！进位只在同号溢出时出现，三进制加法就是省。',
   tests:()=>enumInputs(2).map(r=>{const h=halfAdd(r[0],r[1]);return{in:r,out:[h.sum,h.carry]};}) },
 
 { id:'t2_fadd', ch:'2 · 算术', name:'全加器：会进位的加法', kind:'circuit',
@@ -130,10 +130,10 @@ const LEVELS = [
 
 { id:'t2_sub', ch:'2 · 算术', name:'减法器：取反即变号', kind:'circuit',
   desc:'搭建 2-trit 减法器 D=A−B。平衡三进制里变号只需逐位 STI，无需补码！',
-  theory:'<code>−B</code> = 每一位 STI（因为 −(−1,0,1)=(1,0,−1)）。然后 <code>D = ADD2(A, −B)</code>。二进制需要补码+1，三进制直接翻转 —— Setun 指令因此少一半。',
+  theory:'<code>−B</code> = 每一位 STI（因为 −(−1,0,1)=(1,0,−1)）。然后 <code>D = ADD2(A, −B)</code>。二进制需要补码+1，三进制直接翻转，Setun 指令因此少一半。',
   inputs:['A0','A1','B0','B1'], outputs:['D0','D1','C'], palette:['STI','NTI','PTI','ISP','ISN','ISZ','TMIN','TMAX','TNAND','TNOR','MUX','DEC','CMP','HADD','FADD','ADD2','C_M','C_Z','C_P'],
   hint:'B0→STI, B1→STI，再与 A0,A1 一起进 ADD2。输出 D0D1C。',
-  win:'SUB2 解锁！没有符号位、没有补码 —— 负数浑然天成。',
+  win:'SUB2 解锁！没有符号位、没有补码，负数浑然天成。',
   tests:()=>enumInputs(4).map(r=>{const t=decToTritsLE(tritsToDecLE([r[0],r[1]])-tritsToDecLE([r[2],r[3]]),3);return{in:r,out:t};}) },
 
 { id:'s3_reg', ch:'3 · 存储', name:'寄存器：记住一个 trit', kind:'circuit', seq:true,
@@ -163,7 +163,7 @@ const LEVELS = [
 
 { id:'s3_mem', ch:'3 · 存储', name:'小内存：3 个 cells', kind:'circuit', seq:true,
   desc:'用 DEC + 3×REG + MUX 搭地址为 1-trit 的内存：W=+ 才写入，A 选择 cell(−/0/+)，D 为写入数据，Q 为读出。',
-  theory:'<code>DEC(A) → wM,wZ,wP</code> 三根写选线；每个 cell 的 EN = (W==+ 且本路被选中) ? + : −，即 <code>ENi = min(IS+, wi)</code> 其中 IS+=ISP(W)。读出 <code>Q = MUX(A, qM, qZ, qP)</code>。地址本身就是数据 —— 三进制寻址浑然一体。',
+  theory:'<code>DEC(A) → wM,wZ,wP</code> 三根写选线；每个 cell 的 EN = (W==+ 且本路被选中) ? + : −，即 <code>ENi = min(IS+, wi)</code> 其中 IS+=ISP(W)。读出 <code>Q = MUX(A, qM, qZ, qP)</code>。地址本身就是数据，三进制寻址浑然一体。',
   inputs:['W','A','D'], outputs:['Q'], palette:['STI','NTI','PTI','ISP','ISN','ISZ','TMIN','TMAX','TNAND','TNOR','MUX','DEC','CMP','REG1','DFF','C_M','C_Z','C_P'],
   hint:'1×DEC(A)；3×REG 存数；写使能：W→ISP 得 s，s 分别与 wM/wZ/wP 取小得 EN；读：三路 Q 进 MUX(A) 选出。共约 8 件。',
   win:'MEM 解锁！译码 + 寄存器阵列 + 选择 = 内存。冯·诺依曼就绪。',
@@ -182,7 +182,7 @@ const LEVELS = [
   theory:'三个子电路各算一路，再用 OP 选择：<code>Y = MUX(OP, S, min, max)</code>。S 可用 HADD 的 S 端，min/max 直接 TMIN/TMAX。真实 Setun 的 ALU 也是“多算一路、选一路”。下一步：给它加上寄存器、内存与 PC，就是 CPU。',
   inputs:['OP','A','B'], outputs:['Y'], palette:['STI','NTI','PTI','ISP','ISN','ISZ','TMIN','TMAX','TNAND','TNOR','MUX','DEC','CMP','HADD','FADD','C_M','C_Z','C_P'],
   hint:'HADD(A,B).S / TMIN(A,B) / TMAX(A,B) 三路进 MUX 的 Dm/Dz/Dp，OP 进 S。一次成型。',
-  win:'ALU 解锁！运算器完成 —— 只差把它放进取指-执行循环。',
+  win:'ALU 解锁！运算器完成，只差把它放进取指-执行循环。',
   tests:()=>enumInputs(3).map(r=>{const y=r[0]===-1?halfAdd(r[1],r[2]).sum:r[0]===0?Math.min(r[1],r[2]):Math.max(r[1],r[2]);return{in:r,out:[y]};}) },
 
 { id:'c4_prog1', ch:'4 · 完备', name:'编程 ①：回声与取反', kind:'program',
@@ -194,11 +194,11 @@ const LEVELS = [
   win:'第一个三进制程序跑通了！你正在对“自己体系”的机器编程。' },
 
 { id:'c4_prog2', ch:'4 · 完备', name:'编程 ②：累加 1+2+…+n', kind:'program',
-  desc:'读入 n（1…4），计算 1+2+…+n 并输出。用循环 + 条件跳转实现 —— 这就是“图灵完备”的体感时刻。',
+  desc:'读入 n（1…4），计算 1+2+…+n 并输出。用循环 + 条件跳转实现，这就是“图灵完备”的体感时刻。',
   theory:'需要：计数器 R1 从 1 开始、累加器 R2 从 0 开始；每轮 R2+=R1, R1+=1；当 R1 > n 跳出。用 CMP 思路：JPP/JPN 按符号跳转。TRIT-3 没有 CMP 指令，用 <code>SUB + JPP/JPZ/JPN</code> 组合判断。小心立即数用 LIT 加载。',
   hint:'框架：R1=计数器从1开始，R2=累加器从0开始；每轮先 SUB R3,R1,R0 判断 R1−n，若 R3>0 则已超过n跳 DONE，否则 ADD 累加再自增。注意 ADD 第三个参数可写立即数 1。',
   starter:'# 累加：INP n → 输出 1+..+n\nINP R0\nLIT R1, 1\nLIT R2, 0\nLOOP:\nSUB R3, R1, R0\nJPP R3, DONE\nADD R2, R2, R1\nADD R1, R1, 1\nJMP LOOP\nDONE:\nOUT R2\nHLT\n',
   progTests:()=>[{in:[1],want:[1]},{in:[2],want:[3]},{in:[3],want:[6]},{in:[4],want:[10]}],
-  win:'🎉 三进制完备！你从一根线出发，亲手走完了 Setun 之路：门 → 算术 → 存储 → CPU → 程序。' },
+  win:'三进制完备！你从一根线出发，亲手走完了 Setun 之路：门 → 算术 → 存储 → CPU → 程序。' },
 ];
 const CHAPTERS = ['0 · 平衡三进制','1 · 选择与判断','2 · 算术','3 · 存储','4 · 完备'];

@@ -41,8 +41,8 @@ function renderTree() {
       b.className = 'map-node' + (done ? ' done' : '') + (S.cur === lv.id ? ' cur' : '');
       b.disabled = !unlocked;
       b.innerHTML = `<span class="idx">${String(idx + 1).padStart(2, '0')}</span>` +
-        `<span><b>${lv.name}</b><small>${lv.kind === 'program' ? '✎ 汇编编程' : lv.seq ? '⏱ 时序 · ' + lv.steps().length + '步' : '⚡ 组合 · ' + lv.tests().length + '组'}</small></span>` +
-        `<span class="st">${done ? '✓' : unlocked ? (S.cur === lv.id ? '●' : '→') : '🔒'}</span>`;
+        `<span><b>${lv.name}</b><small>${lv.kind === 'program' ? '汇编编程' : lv.seq ? '时序 · ' + lv.steps().length + '步' : '组合 · ' + lv.tests().length + '组'}</small></span>` +
+        `<span class="st">${done ? '✓' : unlocked ? (S.cur === lv.id ? '●' : '→') : ICONS.lock}</span>`;
       b.onclick = () => loadLevel(lv.id);
       grid.appendChild(b);
     });
@@ -51,7 +51,7 @@ function renderTree() {
   $('stat-progress').textContent = `${S.done.length}/${LEVELS.length}`;
   const devBtn = $('btn-dev');
   if (devBtn) {
-    devBtn.textContent = S.dev ? '🔓 开发者模式：开' : '🔓 开发者模式：关';
+    devBtn.innerHTML = (S.dev ? ICONS.unlock : ICONS.lock) + (S.dev ? ' 开发者模式：开' : ' 开发者模式：关');
     devBtn.classList.toggle('on', !!S.dev);
   }
 }
@@ -175,7 +175,7 @@ function showRowsSeq(lv, res) {
 function win(lv) {
   if (!S.done.includes(lv.id)) { S.done.push(lv.id); persist(); }
   renderTree();
-  $('win-title').textContent = lv.name + ' —— 完成';
+  $('win-title').textContent = lv.name + ' 通过';
   $('win-text').textContent = lv.win || '验证通过！';
   $('win-modal').hidden = false;
 }
@@ -213,7 +213,7 @@ $('drawer-bar').ondblclick = () => $('drawer-toggle').click();
 $('btn-info').onclick = () => { $('info-modal').hidden = false; };
 $('btn-info-close').onclick = () => { $('info-modal').hidden = true; };
 
-// —— CPU 面板 ——
+// CPU 面板
 function cpuReset() {
   const src = $('cpu-code').value;
   const { prog, labels, errs } = CPU.parse(src);
@@ -223,7 +223,7 @@ function cpuReset() {
 function fmtW(v) { return `${decToBal(v, 3)} (${v})`; }
 function renderCpuState(msg) {
   const el = $('cpu-state');
-  if (!cpuSession) { el.textContent = '—'; return; }
+  if (!cpuSession) { el.textContent = '无'; return; }
   const { R, M, ip, prog, out } = cpuSession;
   el.textContent =
     (msg ? msg + '\n' : '') +
@@ -235,7 +235,7 @@ function renderCpuTestsPreview(lv) {
   const t = $('test-table');
   const ts = lv.progTests();
   t.innerHTML = `<tr><th>#</th><th>输入</th><th>期望</th><th>实际</th><th>✓</th></tr>` +
-    ts.map((x, i) => `<tr><td>${i + 1}</td><td>${x.in.join(',')}</td><td>${x.want.join(',')}</td><td>—</td><td>—</td></tr>`).join('');
+    ts.map((x, i) => `<tr><td>${i + 1}</td><td>${x.in.join(',')}</td><td>${x.want.join(',')}</td><td>无</td><td>无</td></tr>`).join('');
   $('test-summary').textContent = `共 ${ts.length} 组程序测试，点「运行程序」验证`;
 }
 function runCpuTests(lv) {
@@ -307,7 +307,7 @@ function stepOnce(ses) {
   return `执行: ${op} ${a.join(' ')}`;
 }
 
-// —— 换算器 ——
+// 换算器
 $('btn-converter').onclick = () => {
   const b = $('converter-box');
   b.hidden = !b.hidden;
@@ -322,7 +322,7 @@ $('conv-b2d').onclick = () => {
   $('conv-d-out').textContent = Number.isNaN(v) ? '格式如 +0−（用 + 0 -）' : String(v);
 };
 
-// —— 帮助 / 重置 ——
+// 帮助 / 重置
 $('btn-help').onclick = () => { $('help-modal').hidden = false; };
 $('btn-help-close').onclick = () => { $('help-modal').hidden = true; };
 $('btn-reset').onclick = () => {
