@@ -316,6 +316,8 @@ $('btn-run').onclick = () => {
   if (!lv) return;
   saveCurrent();
   if (lv.kind === 'circuit') {
+    Editor.refresh();
+    if (Editor._badCount > 0) { toast(t('overlapBlock')); return; }
     let res;
     if (lv.seq) res = Editor.runSeqTests(lv.steps()), showRowsSeq(lv, res);
     else res = Editor.runCombinTests(lv.tests()), showRowsCombin(lv, res);

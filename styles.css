@@ -252,6 +252,7 @@ html,body{margin:0;padding:0;background:var(--bg);color:var(--txt);font-family:'
 #wires rect.wp{fill:#14171d;stroke:var(--amber);stroke-width:2;cursor:grab}
 #wires rect.wp:hover{fill:var(--amber)}
 #wires rect.wp.sel{fill:var(--amber)}
+#wires path.wire.bad{stroke-dasharray:10 5}
 
 /* 时钟：TPS 档位 + 拍计数 */
 #tps-sel{background:#222835;border:1px solid var(--line2);color:var(--txt);font-family:var(--mono);font-size:12px;padding:7px 6px;cursor:pointer}

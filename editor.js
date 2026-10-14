@@ -619,7 +619,9 @@ const Editor = {
     const gates = this.circuit.nodes.filter(n => n.type !== 'INPUT' && n.type !== 'OUTPUT').length;
     document.getElementById('stat-gates').textContent = gates;
     this.updateSelInfo();
+    const nBad = this._badCount || 0;
     document.getElementById('sim-state').innerHTML =
+      nBad ? `${ICONS.warn} ${t('simOverlap', nBad)}` :
       unstable ? `${ICONS.warn} ${t('simLoop')}` :
       floating ? `● ${t('simFloat', floating)}` : `● ${t('simRun')}`;
   },
@@ -1060,14 +1062,130 @@ const Editor = {
   pinPos(nid, pin, dir) { return this.wirePoint(nid, pin, dir); },
 
   // 严格直角走线（无圆角），经过导线节点
-  routeThrough(pts) {
-    let d = `M ${pts[0].x} ${pts[0].y}`;
-    for (let i = 0; i < pts.length - 1; i++) {
-      const a = pts[i], b = pts[i + 1];
-      if (Math.abs(b.x - a.x) < 0.5 || Math.abs(b.y - a.y) < 0.5) d += ` L ${b.x} ${b.y}`;
-      else d += ` L ${b.x} ${a.y} L ${b.x} ${b.y}`;
+  // 直角走线拐点展开（与 routeThrough 同逻辑，供重叠检测复用）
+  routePoints(a, pts, b) {
+    const out = [{ x: a.x, y: a.y }];
+    for (const q of [...(pts || []), b]) {
+      const p = out[out.length - 1];
+      if (Math.abs(q.x - p.x) < 0.5 || Math.abs(q.y - p.y) < 0.5) out.push({ x: q.x, y: q.y });
+      else { out.push({ x: q.x, y: p.y }); out.push({ x: q.x, y: q.y }); }
     }
-    return d;
+    return out;
+  },
+  routeThrough(pts) {
+    return this.routePoints(pts[0], pts.slice(1, -1), pts[pts.length - 1])
+      .map((p, i) => (i ? 'L' : 'M') + ` ${p.x} ${p.y}`).join(' ');
+  },
+  // 两段轴对齐线段的共线重叠长度（0 = 不共线/仅交叉）
+  overlapLen(s, t) {
+    const EPS = 0.5;
+    const sH = Math.abs(s.p.y - s.q.y) < EPS, tH = Math.abs(t.p.y - t.q.y) < EPS;
+    if (sH && tH && Math.abs(s.p.y - t.p.y) < EPS) {
+      const lo = Math.max(Math.min(s.p.x, s.q.x), Math.min(t.p.x, t.q.x));
+      const hi = Math.min(Math.max(s.p.x, s.q.x), Math.max(t.p.x, t.q.x));
+      return Math.max(0, hi - lo);
+    }
+    if (!sH && !tH && Math.abs(s.p.x - t.p.x) < EPS) {
+      const lo = Math.max(Math.min(s.p.y, s.q.y), Math.min(t.p.y, t.q.y));
+      const hi = Math.min(Math.max(s.p.y, s.q.y), Math.max(t.p.y, t.q.y));
+      return Math.max(0, hi - lo);
+    }
+    return 0;
+  },
+  wireSegsOf(w, pts) {
+    const segs = [];
+    for (let i = 0; i < pts.length - 1; i++) {
+      const p = pts[i], q = pts[i + 1];
+      if (Math.hypot(q.x - p.x, q.y - p.y) < 0.5) continue;
+      segs.push({ wid: w.wid, net: w.from.nid + ':' + w.from.pin, p, q });
+    }
+    return segs;
+  },
+  // 自动走线：无手工节点的导线在候选走道里挑一条与异网零重叠的。
+  // 有手工节点的线固定不动（用户负责）。返回 Map(wid → 拐点表，含首尾）。
+  planAllRoutes() {
+    const plan = new Map();
+    if (!this.circuit) return plan;
+    const W = this.circuit.wires;
+    const pinsOf = (w) => {
+      const a = this.wirePoint(w.from.nid, w.from.pin, 'out');
+      const b = this.wirePoint(w.to.nid, w.to.pin, 'in');
+      return (a && b) ? [a, b] : null;
+    };
+    const pool = [];
+    for (const w of W) {
+      const ab = pinsOf(w);
+      if (!ab) continue;
+      if ((w.pts || []).length) {
+        const pts = this.routePoints(ab[0], w.pts, ab[1]);
+        plan.set(w.wid, pts);
+        for (const s of this.wireSegsOf(w, pts)) pool.push(s);
+      }
+    }
+    for (const w of [...W].sort((a, b) => a.wid - b.wid)) {
+      if (plan.has(w.wid)) continue;
+      const ab = pinsOf(w);
+      if (!ab) continue;
+      const [A, B] = ab;
+      const net = w.from.nid + ':' + w.from.pin;
+      const midX = (A.x + B.x) / 2, midY = (A.y + B.y) / 2;
+      const cands = [
+        { pts: [{ x: A.x, y: A.y }, { x: B.x, y: A.y }, { x: B.x, y: B.y }], pen: 0 },
+        { pts: [{ x: A.x, y: A.y }, { x: A.x, y: B.y }, { x: B.x, y: B.y }], pen: 1 },
+      ];
+      for (const k of [1, -1, 2, -2, 3, -3]) {
+        const L = midX + k * GRID, M = midY + k * GRID;
+        cands.push({ pts: [{ x: A.x, y: A.y }, { x: L, y: A.y }, { x: L, y: B.y }, { x: B.x, y: B.y }], pen: 2 + Math.abs(k) });
+        cands.push({ pts: [{ x: A.x, y: A.y }, { x: A.x, y: M }, { x: B.x, y: M }, { x: B.x, y: B.y }], pen: 2 + Math.abs(k) });
+      }
+      let best = cands[0], bestScore = Infinity;
+      for (const c of cands) {
+        let bad = 0;
+        for (const s of this.wireSegsOf(w, c.pts)) {
+          for (const o of pool) {
+            if (o.net === net) continue;
+            if (this.overlapLen(s, o) > 6) { bad++; break; }
+          }
+          if (bad) break;
+        }
+        const score = bad * 1000 + c.pen;
+        if (score < bestScore) { bestScore = score; best = c; }
+      }
+      plan.set(w.wid, best.pts);
+      for (const s of this.wireSegsOf(w, best.pts)) pool.push({ ...s, net });
+    }
+    return plan;
+  },
+  // 重叠检测：不同信号网的导线只允许交叉穿过，不允许共线重叠（>6px 才算）。
+  // 同一输出钉分叉出去的算同一信号网，不拦。返回 [{a, b, at}]（线 wid 对）。
+  findOverlaps() {
+    if (!this.circuit) return [];
+    const plan = this.planAllRoutes();
+    const segs = [];
+    for (const w of this.circuit.wires) {
+      if (!plan.has(w.wid)) continue;
+      for (const s of this.wireSegsOf(w, plan.get(w.wid))) segs.push(s);
+    }
+    const ov = [];
+    const seen = new Set();
+    for (let i = 0; i < segs.length; i++) for (let j = i + 1; j < segs.length; j++) {
+      const s = segs[i], t = segs[j];
+      if (s.net === t.net || s.wid === t.wid) continue;
+      if (this.overlapLen(s, t) <= 6) continue;
+      let at = null;
+      if (Math.abs(s.p.y - s.q.y) < 0.5) {
+        const lo = Math.max(Math.min(s.p.x, s.q.x), Math.min(t.p.x, t.q.x));
+        const hi = Math.min(Math.max(s.p.x, s.q.x), Math.max(t.p.x, t.q.x));
+        at = [(lo + hi) / 2, s.p.y];
+      } else {
+        const lo = Math.max(Math.min(s.p.y, s.q.y), Math.min(t.p.y, t.q.y));
+        const hi = Math.min(Math.max(s.p.y, s.q.y), Math.max(t.p.y, t.q.y));
+        at = [s.p.x, (lo + hi) / 2];
+      }
+      const key = s.wid < t.wid ? s.wid + '-' + t.wid : t.wid + '-' + s.wid;
+      if (!seen.has(key)) { seen.add(key); ov.push({ a: s.wid, b: t.wid, at }); }
+    }
+    return ov;
   },
   // 导线审计：每根线的路径首尾必须精确落在两端钉中心（2.5px 内），否则报坏线
   auditWires() {
@@ -1095,23 +1213,32 @@ const Editor = {
     if (!vals) vals = this.evaluate().vals;
     const NS = 'http://www.w3.org/2000/svg';
     const colorOf = v => (v === 1 ? '#ffa726' : v === -1 ? '#4fc3f7' : v === 0 ? '#9aa0b0' : '#3a4356');
+    const badSet = new Set();
+    const badPairs = this.findOverlaps();
+    for (const o of badPairs) { badSet.add(o.a); badSet.add(o.b); }
+    this._badWires = badSet;
+    this._badCount = badPairs.length;
+    const plan = this.planAllRoutes();
     for (const w of this.circuit.wires) {
       const a = this.wirePoint(w.from.nid, w.from.pin, 'out');
       const b = this.wirePoint(w.to.nid, w.to.pin, 'in');
-      if (!a || !b) continue;
+      if (!a || !b || !plan.has(w.wid)) continue;
       const v = vals[w.from.nid]?.[w.from.pin];
       const col = colorOf(v);
       const live = v !== null && v !== undefined;
-      const d = this.routeThrough([a, ...(w.pts || []), b]);
+      const d = plan.get(w.wid).map((p, i) => (i ? 'L' : 'M') + ` ${p.x} ${p.y}`).join(' ');
       const isSel = this.selectedWire === w.wid;
+      const isBad = badSet.has(w.wid);
       const halo = document.createElementNS(NS, 'path');
-      halo.setAttribute('d', d); halo.setAttribute('class', 'halo'); halo.setAttribute('stroke', isSel ? '#fff' : col);
+      halo.setAttribute('d', d); halo.setAttribute('class', 'halo'); halo.setAttribute('stroke', isBad ? '#ff5d5d' : isSel ? '#fff' : col);
       svg.appendChild(halo);
       const p = document.createElementNS(NS, 'path');
-      p.setAttribute('d', d); p.setAttribute('class', 'wire' + (isSel ? ' sel' : ''));
-      p.setAttribute('stroke', isSel ? '#fff' : col);
-      p.setAttribute('opacity', live || isSel ? '.95' : '.55');
-      if (live && !isSel) p.style.filter = `drop-shadow(0 0 5px ${col})`;
+      p.setAttribute('d', d); p.setAttribute('class', 'wire' + (isSel ? ' sel' : '') + (isBad ? ' bad' : ''));
+      p.setAttribute('stroke', isBad ? '#ff5d5d' : isSel ? '#fff' : col);
+      p.setAttribute('opacity', live || isSel || isBad ? '.95' : '.55');
+      if (live && !isSel && !isBad) p.style.filter = `drop-shadow(0 0 5px ${col})`;
+      if (isBad) p.style.filter = 'drop-shadow(0 0 6px #ff5d5d)';
+      p.style.strokeDasharray = isBad ? '10 5' : '';
       p.style.cursor = 'pointer';
       p.dataset.wid = w.wid;
       const hit = document.createElementNS(NS, 'path');
