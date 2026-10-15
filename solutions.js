@@ -220,9 +220,9 @@ s3_cnt: { nodes: [
 ] },
 // s3_mem: DEC 译码写选 + 3×REG + MUX 读出
 s3_mem: { nodes: [
-  { t: 'DEC', x: 176, y: 176 }, { t: 'ISP', x: 198, y: 396 },
-  { t: 'TMIN', x: 352, y: 110 }, { t: 'TMIN', x: 352, y: 242 }, { t: 'TMIN', x: 352, y: 374 },
-  { t: 'REG1', x: 506, y: 88 }, { t: 'REG1', x: 484, y: 220 }, { t: 'REG1', x: 506, y: 352 },
+  { t: 'DEC', x: 220, y: 308 }, { t: 'ISP', x: 242, y: 528 },
+  { t: 'TMIN', x: 352, y: 40 }, { t: 'TMIN', x: 352, y: 242 }, { t: 'TMIN', x: 352, y: 374 },
+  { t: 'REG1', x: 506, y: 88 }, { t: 'REG1', x: 484, y: 220 }, { t: 'REG1', x: 506, y: 418 },
   { t: 'MUX', x: 630, y: 220 },
 ], wires: [
   { f: ['in', 1, 'Q'], t: ['g', 0, 'S'] },
@@ -242,7 +242,7 @@ s3_mem: { nodes: [
   { f: ['g', 5, 'Q'], t: ['g', 8, 'Dm'] },
   { f: ['g', 6, 'Q'], t: ['g', 8, 'Dz'] },
   { f: ['g', 7, 'Q'], t: ['g', 8, 'Dp'] },
-  { f: ['in', 1, 'Q'], t: ['g', 8, 'S'], pts: [[170, 60], [642, 60]] },
+  { f: ['in', 1, 'Q'], t: ['g', 8, 'S'] },
   { f: ['g', 8, 'Y'], t: ['out', 0, 'A'] },
 ] },
 // c4_alu: Y = MUX(OP, HADD.S, TMIN, TMAX)
@@ -274,9 +274,10 @@ function specToCircuit(lv, spec) {
     nodes.push({ nid: nid++, type: 'INPUT', x: 40, y, val: 0, state: 0, ioName: nm });
     return nid - 1;
   });
+  const outX = spec.outX || 720;
   const outIds = lv.outputs.map((nm, i) => {
     const y = 80 + i * Math.max(72, Math.min(110, 400 / Math.max(1, lv.outputs.length)));
-    nodes.push({ nid: nid++, type: 'OUTPUT', x: 720, y, val: 0, state: 0, ioName: nm });
+    nodes.push({ nid: nid++, type: 'OUTPUT', x: outX, y, val: 0, state: 0, ioName: nm });
     return nid - 1;
   });
   const gIds = spec.nodes.map(g => {

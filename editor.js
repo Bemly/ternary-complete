@@ -1254,9 +1254,30 @@ const Editor = {
     else { try { const s = this.shapeOf(n.type); w = s.w; h = s.h + 24; } catch { w = 120; h = 80; } }
     return { l: n.x - pad, t: n.y - pad, r: n.x + w + pad, b: n.y + h + pad };
   },
-  // 轴对齐线段是否穿入矩形内部（擦边、点触不算）
-  segHitsBox(s, r) {
-    const x1 = s.p.x, y1 = s.p.y, x2 = s.q.x, y2 = s.q.y;
+  // 轴对齐线段是否穿入矩形内部（擦边、点触不算）。
+  // esc：引脚逃逸点表（本线两端钉坐标）。端点落在逃逸点 2.5px 内时，该端向内 24px 免检，
+  // 于是引脚 stub 永远干净，而穿符号体必被抓住。esc 缺省时行为与旧版一致。
+  segHitsBox(s, r, esc) {
+    let p = s.p, q = s.q;
+    if (esc && esc.length) {
+      const trim = (pt, other) => {
+        for (const e of esc) {
+          if (Math.hypot(pt.x - e.x, pt.y - e.y) < 2.5) {
+            const len = Math.hypot(other.x - pt.x, other.y - pt.y);
+            if (len <= 24) return null;
+            const t = 24 / len;
+            return { x: pt.x + (other.x - pt.x) * t, y: pt.y + (other.y - pt.y) * t };
+          }
+        }
+        return pt;
+      };
+      const p2 = trim(p, q);
+      if (!p2) return false;
+      const q2 = trim(q, p);
+      if (!q2) return false;
+      p = p2; q = q2;
+    }
+    const x1 = p.x, y1 = p.y, x2 = q.x, y2 = q.y;
     if (y1 === y2) {
       if (!(y1 > r.t && y1 < r.b)) return false;
       return Math.min(Math.max(x1, x2), r.r) - Math.max(Math.min(x1, x2), r.l) > 0;
@@ -1299,7 +1320,10 @@ const Editor = {
       if (!ab) continue;
       const [A, B] = ab;
       const net = w.from.nid + ':' + w.from.pin;
-      const obs = [...boxes.entries()].filter(([id]) => id !== w.from.nid && id !== w.to.nid).map(([, b]) => b);
+      // 引脚逃逸：端点盒全部参检（含起止元件），只豁免本线两端钉周 24px。
+      // 于是 stub 永远干净，穿符号体必被抓住，逼出紧贴的局部环线而非绕全场。
+      const esc = [A, B];
+      const obs = [...boxes.values()];
       const midX = (A.x + B.x) / 2, midY = (A.y + B.y) / 2;
       const cands = [
         { pts: [{ x: A.x, y: A.y }, { x: B.x, y: A.y }, { x: B.x, y: B.y }], pen: 0 },
@@ -1365,7 +1389,7 @@ const Editor = {
             if (this.segGap(s, o) < 20) { sep++; break; }
           }
           for (const r of obs) {
-            if (this.segHitsBox(s, r)) { crossBody++; break; }
+            if (this.segHitsBox(s, r, esc)) { crossBody++; break; }
           }
         }
         return { v: bad * W8.bad + crossBody * W8.body + len / 40 + segs.length * 2 + xing * W8.xing + sep * W8.sep, bad, crossBody, xing };
