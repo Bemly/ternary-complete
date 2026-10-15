@@ -7,7 +7,7 @@
  * - 空白处拖拽：框选（Shift 加选）；单击空白：取消选择；拖动元件：多选一起搬（22px 网格吸附）
  * - 空格/中键/右键拖拽：平移画布；滚轮：以光标为中心缩放
  * - Delete：删除选中；Ctrl+Z / Ctrl+Y（Shift+Z）：撤销/重做；Ctrl+C/V：复制粘贴；Ctrl+A：全选
- * - 重叠回滚：任何编辑手势收尾若新增导线重叠，自动 undo 回到上一步并清空 redo
+ * - 重叠处理：手势收尾新增重叠先挤旁边空位，无位可挤才 undo 回上一步并清空 redo
  */
 'use strict';
 
@@ -201,29 +201,62 @@ const Editor = {
   overlapCount() {
     try { return this.findOverlaps().length; } catch { return 0; }
   },
-  // 重叠回滚：手势收尾时若新增重叠，丢弃本次改动回到上一步（redo 一并清空，不可重做回重叠态）
-  revertIfOverlap(before) {
-    let after = 0;
-    try { after = this.findOverlaps().length; } catch { return false; }
-    if (after > before) {
-      const snap = this.undoStack.pop();
-      if (snap !== undefined) {
-        try { this.restoreSnapshot(snap); }
-        catch {
-          try {
-            const o = JSON.parse(snap);
-            this.circuit = { nodes: o.nodes, wires: o.wires };
-            this.nidSeq = o.nidSeq; this.widSeq = o.widSeq;
-          } catch {}
-        }
-        this.redoStack = [];
-        try { this.toast(t('overlapRevert')); } catch {}
-        return true;
+  // 把刚动过的导线节点挤到附近空位：GRID 步进同心扩散，首个重叠数回到 before 的即采纳
+  nudgeWaypoint(wid, idx, before) {
+    let w = null;
+    try { w = this.circuit.wires.find(x => x.wid === wid); } catch { return false; }
+    if (!w || !w.pts || !w.pts[idx]) return false;
+    const orig = { x: w.pts[idx].x, y: w.pts[idx].y };
+    let boxes = [];
+    try {
+      for (const n of this.circuit.nodes) {
+        if (n.nid === w.from.nid || n.nid === w.to.nid) continue;
+        const b = this.nodeBox(n.nid);
+        if (b) boxes.push(b);
       }
+    } catch { boxes = []; }
+    const inBox = (x, y) => boxes.some(r => x > r.l && x < r.r && y > r.t && y < r.b);
+    const cands = [];
+    for (let d = 1; d <= 3; d++) {
+      for (let i = -d; i <= d; i++) { cands.push([i * GRID, d * GRID]); cands.push([i * GRID, -d * GRID]); }
+      for (let i = -d + 1; i <= d - 1; i++) { cands.push([d * GRID, i * GRID]); cands.push([-d * GRID, i * GRID]); }
     }
+    for (const [dx, dy] of cands) {
+      const x = orig.x + dx, y = orig.y + dy;
+      if (x < 0 || y < 0 || x > WORLD || y > WORLD || inBox(x, y)) continue;
+      w.pts[idx] = { x, y };
+      let ok = false;
+      try { ok = this.findOverlaps(null, before).length <= before; } catch { ok = false; }
+      if (ok) return true;
+    }
+    w.pts[idx] = orig;
     return false;
   },
-
+  // 落线结算：干净则保留；新增重叠先挤空位，实在没空位才 undo 回上一步（redo 清空）
+  settleOverlap(before, wid, idx) {
+    let cur = this.overlapCount();
+    if (cur <= before) { this.refresh(); return; }
+    if (wid != null && idx != null && this.nudgeWaypoint(wid, idx, before)) {
+      this.refresh();
+      try { this.toast(t('overlapNudged')); } catch {}
+      return;
+    }
+    const snap = this.undoStack.pop();
+    if (snap !== undefined) {
+      try { this.restoreSnapshot(snap); }
+      catch {
+        try {
+          const o = JSON.parse(snap);
+          this.circuit = { nodes: o.nodes, wires: o.wires };
+          this.nidSeq = o.nidSeq; this.widSeq = o.widSeq;
+        } catch {}
+      }
+      this.redoStack = [];
+      try { this.toast(t('overlapRevert')); } catch {}
+      return;
+    }
+    this.refresh();
+  },
   toast(msg) {
     const t = document.getElementById('toast');
     t.textContent = msg; t.classList.add('show');
@@ -406,7 +439,7 @@ const Editor = {
       });
     }
     this.selected = fresh; this.selectedWire = null;
-    if (!this.revertIfOverlap(before)) this.refresh();
+    this.settleOverlap(before, null, null);
   },
 
   // 求值（组合不动点；DFF/REG1 经 state 跨滴答）
@@ -875,7 +908,7 @@ const Editor = {
         this.selected = [n.nid]; this.selectedWire = null;
         if (n.type === 'INPUT') { n.val = n.val === -1 ? 0 : n.val === 0 ? 1 : -1; }
         this.refresh();
-      } else if (!this.revertIfOverlap(beforeOv)) this.refresh();
+      } else this.settleOverlap(beforeOv, null, null);
     });
     this.elBoard.appendChild(el);
   },
@@ -920,7 +953,7 @@ const Editor = {
     const before = this.overlapCount();
     this.pushHistory();
     this.circuit.wires.push({ wid: this.widSeq++, from: { ...from }, to: { nid, pin }, pts: [] });
-    if (!this.revertIfOverlap(before)) this.refresh();
+    this.settleOverlap(before, null, null);
   },
 
   addWaypoint(wid, pt) {
@@ -941,7 +974,7 @@ const Editor = {
     w.pts.splice(best, 0, { x: snapG(pt.x), y: snapG(pt.y) });
     this.selectedWp = { wid, idx: best };
     this.selectedWire = null;
-    if (!this.revertIfOverlap(before)) this.refresh();
+    this.settleOverlap(before, wid, best);
   },
   segDist(p, a, b) {
     const dx = b.x - a.x, dy = b.y - a.y;
@@ -965,7 +998,7 @@ const Editor = {
     const up = () => {
       window.removeEventListener('pointermove', move);
       window.removeEventListener('pointerup', up);
-      if (!this.revertIfOverlap(before)) this.refresh();
+      this.settleOverlap(before, wid, idx);
     };
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', up);
@@ -1007,7 +1040,7 @@ const Editor = {
     const up = () => {
       window.removeEventListener('pointermove', move);
       window.removeEventListener('pointerup', up);
-      if (moved && !this.revertIfOverlap(before)) this.refresh();
+      if (moved) this.settleOverlap(before, wid, idx);
       // 未拖动：放手，后续 click 事件走选中逻辑
     };
     window.addEventListener('pointermove', move);
@@ -1469,9 +1502,11 @@ const Editor = {
   },
   // 合并检测：只允许交叉穿过；共线长共干、近距长并行都算“叠在一起”。
   // 同网仅允许钉根部 ≤24px 短共干。返回 [{a, b, at}]（线 wid 对）。
-  findOverlaps(plan) {
+  // cap：找到超过 cap 对即早停（挤位搜索只关心是否超标）。
+  findOverlaps(plan, cap) {
     if (!this.circuit) return [];
     if (!plan) plan = this.planAllRoutes();
+    if (cap === undefined) cap = Infinity;
     const segs = [];
     for (const w of this.circuit.wires) {
       if (!plan.has(w.wid)) continue;
@@ -1484,7 +1519,10 @@ const Editor = {
       const mi = this.mergeInfo(s, t);
       if (!mi) continue;
       const key = s.wid < t.wid ? s.wid + '-' + t.wid : t.wid + '-' + s.wid;
-      if (!seen.has(key)) { seen.add(key); ov.push({ a: s.wid, b: t.wid, at: mi.at }); }
+      if (!seen.has(key)) {
+        seen.add(key); ov.push({ a: s.wid, b: t.wid, at: mi.at });
+        if (ov.length > cap) return ov;
+      }
     }
     return ov;
   },
