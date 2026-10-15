@@ -169,9 +169,10 @@ function renderTree() {
 
 function showMap() {
   saveCurrent();
-  renderTree();
+  // 先显形再渲染：路线图导线端点需实测符号墨盒，藏着量全是 0
   $('map-view').hidden = false;
   $('game-view').hidden = true;
+  renderTree();
   $('level-kicker').textContent = t('crumbMap');
   $('level-name-top').textContent = t('crumbPick');
 }

@@ -99,6 +99,7 @@ console.log('EN levels:', Object.keys(LEVEL_EN).length+'/18');
   自下而上蛇形导线连接，节点包络盒不得相互重叠。
   导线端点必须落在符号/钉轮廓上：布线台走 `Editor.routeThrough()` 并可用 `auditWires()` 自检；
   路线图先挂载 canvas 再实测符号墨盒（`getBBox`）定端点，离线量尺寸全是 0。
+  `showMap()` 必须先取消隐藏再 `renderTree()`，否则整图导线退化为 `M 0 0`。
   导线只许交叉、不许重叠或贴靠：任意两根导线重叠或平行贴近（间距 <6px 且并行 >24px 同样拦截）
   标红并拦截测试，没有例外（同网分叉仅允许钉根部 ≤24px 短共干，读作焊点）；
   编辑手势收尾若新增重叠，先原地挤到旁边空位（`nudgeWaypoint` 同心扩散找首个干净点），
