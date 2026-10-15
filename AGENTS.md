@@ -47,7 +47,7 @@ import re
 dash = chr(0x2014)
 pat = re.compile('[\U0001F300-\U0001FAFF\u2600-\u27BF\u2B00-\u2BFF\u23E9-\u23FA\u23F5\u23F8\u25B6\u25C0]')
 allow = {0x2713, 0x2717}
-files = ['index.html','app.js','editor.js','levels.js','levels_en.js','cpu.js','ternary.js','icons.js','i18n.js','styles.css','AGENTS.md']
+files = ['index.html','app.js','editor.js','levels.js','levels_en.js','cpu.js','ternary.js','icons.js','i18n.js','styles.css','AGENTS.md','README.md','README.zh.md']
 bad_dash = [(f, i) for f in files for i, l in enumerate(open(f).read().split(chr(10)), 1) if dash in l]
 bad_emoji = [(f, i, hex(ord(c))) for f in files for i, l in enumerate(open(f).read().split(chr(10)), 1) for c in set(pat.findall(l)) if ord(c) not in allow]
 print('dash:', bad_dash if bad_dash else 'none')

@@ -57,25 +57,25 @@ No build step, no dependencies. Static files only.
 
 The key lesson: one TNAND is **not** functionally complete in three-valued
 logic (its functions are all zero-preserving). Threshold gates NTI / PTI close
-the gap — the physical basis of the Soviet Setun machine — and the MUX built
+the gap, the physical basis of the Soviet Setun machine, and the MUX built
 on top of them makes every truth table a lookup.
 
 ## Project layout
 
-- `index.html` — roadmap page + fullscreen bench + bottom test strip + dialogs
-- `styles.css` — styling (zero rounded corners on UI chrome; ANSI gate symbols)
-- `ternary.js` — ternary logic core and balanced↔decimal conversion
-- `levels.js` — part definitions (`COMP_DEFS`) + 18 levels (`LEVELS`, Chinese)
-- `levels_en.js` — English overrides for levels, chapters, part names
-- `i18n.js` — UI dictionary (zh/en), `t()`, language switch
-- `icons.js` — inline SVG icon set (the only icon source; no emoji)
-- `editor.js` — circuit editor + simulator (eval/tick/tests/serialize, router)
-- `solutions.js` — verified reference builds for all 18 levels
-- `cpu.js` — TRIT-3 CPU (3-trit words, R0–R3, M0–M8)
-- `app.js` — view switching, test bench, CPU panel, saves (`localStorage`)
-- `scripts/check_solutions.js` — headless regression over all reference builds
-- `scripts/check_terms.py` — name scanner, wired as a pre-commit hook
-- `AGENTS.md` — contributor rules (commit workflow, UI constraints, commands)
+- `index.html`: roadmap page + fullscreen bench + bottom test strip + dialogs
+- `styles.css`: styling (zero rounded corners on UI chrome; ANSI gate symbols)
+- `ternary.js`: ternary logic core and balanced↔decimal conversion
+- `levels.js`: part definitions (`COMP_DEFS`) + 18 levels (`LEVELS`, Chinese)
+- `levels_en.js`: English overrides for levels, chapters, part names
+- `i18n.js`: UI dictionary (zh/en), `t()`, language switch
+- `icons.js`: inline SVG icon set (the only icon source; no emoji)
+- `editor.js`: circuit editor + simulator (eval/tick/tests/serialize, router)
+- `solutions.js`: verified reference builds for all 18 levels
+- `cpu.js`: TRIT-3 CPU (3-trit words, R0–R3, M0–M8)
+- `app.js`: view switching, test bench, CPU panel, saves (`localStorage`)
+- `scripts/check_solutions.js`: headless regression over all reference builds
+- `scripts/check_terms.py`: name scanner, wired as a pre-commit hook
+- `AGENTS.md`: contributor rules (commit workflow, UI constraints, commands)
 
 ## Checks
 
