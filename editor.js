@@ -3,7 +3,7 @@
  * 键鼠操作约定：
  * - 按住输出钉 → 拖到输入钉松手：连线（点两下也行）；Esc 取消
  * - 按住导线本体拖拽：抓取点即时弯折改走向；双击加节点；右键点节点删该节点
- * - 右键点导线：删除该导线；单击导线：选中（Delete 删除）
+ * - 右键点导线/元件：删除；单击导线：选中（Delete 删除）
  * - 空白处拖拽：框选（Shift 加选）；单击空白：取消选择；拖动元件：多选一起搬（22px 网格吸附）
  * - 空格/中键/右键拖拽：平移画布；滚轮：以光标为中心缩放
  * - Delete：删除选中；Ctrl+Z / Ctrl+Y（Shift+Z）：撤销/重做；Ctrl+C/V：复制粘贴；Ctrl+A：全选
@@ -110,6 +110,23 @@ const Editor = {
         this.circuit.wires = this.circuit.wires.filter(w => w.wid !== Number(g.dataset.wid));
         if (this.selectedWire === Number(g.dataset.wid)) this.selectedWire = null;
         this.refresh(); return;
+      }
+      const nd = e.target.closest && e.target.closest('.node');
+      if (nd) {
+        const n = this.nodeById(Number(nd.dataset.nid));
+        if (n && n.type !== 'INPUT' && n.type !== 'OUTPUT') {
+          const nid = n.nid;
+          this.pushHistory();
+          this.circuit.nodes = this.circuit.nodes.filter(x => x.nid !== nid);
+          this.circuit.wires = this.circuit.wires.filter(w => w.from.nid !== nid && w.to.nid !== nid);
+          this.selected = this.selected.filter(id => id !== nid);
+          if (this.selectedWire != null && !this.circuit.wires.some(w => w.wid === this.selectedWire)) this.selectedWire = null;
+          this.selectedWp = null;
+          this.refresh();
+          try { this.toast(t('tDeleted', compName(n.type))); } catch {}
+          return;
+        }
+        if (n) { try { this.toast(t('tNoDelIO')); } catch {} return; }
       }
       this.pending = null; this.clearSelection(); this.refresh();
     });
