@@ -323,7 +323,7 @@ html,body{margin:0;padding:0;background:var(--bg);color:var(--txt);font-family:'
 
 /* B站 Toy 接入：账号、排行榜、二维码、确认框、横屏提示、App 安全区 */
 :root{--sat:0px;--sar:0px;--sab:0px;--sal:0px}
-body{padding:var(--sat) var(--sar) var(--sab) var(--sal);box-sizing:border-box}
+body{padding:var(--sat) var(--sar) var(--sab) var(--sal);box-sizing:border-box;background:linear-gradient(#0c0e12,#0c0e12) top/100% var(--sat) no-repeat,var(--bg)}
 #map-view,#game-view{height:calc(100vh - 48px - var(--sat) - var(--sab))}
 #btn-profile{gap:6px;max-width:160px}
 #btn-profile #profile-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -348,7 +348,7 @@ body{padding:var(--sat) var(--sar) var(--sab) var(--sal);box-sizing:border-box}
 #rank-list li.rank-msg{color:var(--dim);justify-content:center}
 .qr-card{max-width:380px;text-align:center}
 #qr-img{width:240px;height:240px;background:#fff;padding:8px;margin:8px auto;display:block}
-#landscape-tip{position:fixed;left:50%;bottom:calc(16px + var(--sab));transform:translateX(-50%);z-index:58;display:flex;align-items:center;gap:10px;background:#1d2129;border:1px solid var(--amber);padding:8px 10px 8px 14px;font-size:13px;white-space:nowrap}
+#landscape-tip{position:fixed;left:50%;top:calc(var(--sat) + 56px);transform:translateX(-50%);z-index:58;display:flex;align-items:center;gap:10px;background:#1d2129;border:1px solid var(--amber);padding:8px 10px 8px 14px;font-size:13px;white-space:nowrap}
 #landscape-tip[hidden]{display:none}
 /* 触屏：画布自己处理手势，不让浏览器滚动 / 缩放页面 */
 #board-wrap{touch-action:none}

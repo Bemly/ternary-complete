@@ -24,7 +24,7 @@ const Bili = {
       this.sdk = (typeof window !== 'undefined' && window.toy) || null;
       if (!this.sdk || typeof this.sdk.isSupport !== 'function') return false;
       const names = ['getCloudStorage', 'setCloudStorage', 'removeCloudStorage', 'submitScore', 'getRankList',
-        'getMyRank', 'share', 'getQrCode', 'getUserProfile', 'onContainerChange', 'setContainerMode'];
+        'getMyRank', 'share', 'getQrCode', 'getUserProfile', 'onContainerChange', 'setContainerMode', 'closeBrowser'];
       await Promise.all(names.map(async n => {
         try { this.caps[n] = !!(await this.sdk.isSupport(n)); } catch { this.caps[n] = false; }
       }));

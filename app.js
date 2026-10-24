@@ -679,12 +679,37 @@ $('btn-qr-close').onclick = () => { $('qr-modal').hidden = true; };
 
 // App 容器：安全区留白；手机竖屏进布线台时提示横屏
 let container = null;
+// 系统安全区（刘海 / 底部横条），需要 viewport-fit=cover 才有值
+function envInsets() {
+  const p = document.createElement('div');
+  p.style.cssText = 'position:fixed;visibility:hidden;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)';
+  document.body.appendChild(p);
+  const cs = getComputedStyle(p);
+  const r = { top: parseFloat(cs.paddingTop) || 0, right: parseFloat(cs.paddingRight) || 0, bottom: parseFloat(cs.paddingBottom) || 0, left: parseFloat(cs.paddingLeft) || 0 };
+  p.remove();
+  return r;
+}
+// B站 App 竖屏非沉浸时，状态栏和平台胶囊栏（关注 / 分享 / 关闭）浮在网页上方，
+// 顶部必须让出这一条，否则工具条点不到。Toy 预览框（iframe）里同样模拟了这一条。
+const CAPSULE_H = 48, OVERLAY_MIN = 88;
+function onToyHost() { return /(^|\.)bilibili\.com$/.test(location.hostname) || /\/toy\//.test(location.pathname); }
+function inFrame() { try { return window.top !== window.self; } catch { return true; } }
 function applyContainer() {
   const st = container;
   const root = document.documentElement.style;
   const sa = (st && st.safeArea) || { top: 0, right: 0, bottom: 0, left: 0 };
-  root.setProperty('--sat', (sa.top || 0) + 'px'); root.setProperty('--sar', (sa.right || 0) + 'px');
-  root.setProperty('--sab', (sa.bottom || 0) + 'px'); root.setProperty('--sal', (sa.left || 0) + 'px');
+  const env = envInsets();
+  const portrait = st ? st.orientation === 'portrait' : innerHeight > innerWidth;
+  const overlay = (Bili.can('closeBrowser') || (inFrame() && onToyHost())) && portrait && !(st && st.immersive);
+  // SDK 报的顶部安全区若只有状态栏高（< 70），胶囊栏还要另外加上；已经含胶囊栏则直接用
+  const sdkTop = sa.top || 0;
+  const top = overlay
+    ? Math.max(OVERLAY_MIN, sdkTop < 70 ? sdkTop + CAPSULE_H : sdkTop, env.top + CAPSULE_H)
+    : Math.max(sdkTop, env.top);
+  root.setProperty('--sat', top + 'px');
+  root.setProperty('--sar', Math.max(sa.right || 0, env.right) + 'px');
+  root.setProperty('--sab', Math.max(sa.bottom || 0, env.bottom) + 'px');
+  root.setProperty('--sal', Math.max(sa.left || 0, env.left) + 'px');
   const portraitPhone = st && st.deviceType === 'phone' && st.orientation === 'portrait';
   $('landscape-tip').hidden = !(portraitPhone && !$('game-view').hidden && !S.landDismiss);
 }
@@ -692,8 +717,11 @@ $('btn-landscape').onclick = () => Bili.landscape();
 $('btn-land-x').onclick = () => { S.landDismiss = true; applyContainer(); };
 new MutationObserver(applyContainer).observe($('game-view'), { attributes: true, attributeFilter: ['hidden'] });
 
+window.addEventListener('resize', () => applyContainer());
 async function bootPlatform() {
+  applyContainer();
   await Bili.init();
+  applyContainer();
   if (!Bili.sdk) return;
   $('btn-rank').hidden = !Bili.can('getRankList');
   $('btn-profile').hidden = !Bili.can('getUserProfile');
