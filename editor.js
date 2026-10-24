@@ -51,6 +51,7 @@ const Editor = {
     this.elWrap = document.getElementById('board-wrap');
     this.elStage = document.getElementById('stage');
     this.elBox = document.getElementById('select-box');
+    this.initTouch();
     document.getElementById('btn-clear').onclick = () => {
       if (!this.circuit) return;
       this.pushHistory();
@@ -209,6 +210,41 @@ const Editor = {
       if (!e.ctrlKey && !e.metaKey && !e.altKey && e.key.toLowerCase() === 'f' && this.level && this.level.kind === 'circuit') this.fitView();
     });
     document.addEventListener('keyup', (e) => { if (e.key === ' ') this.spaceDown = false; });
+  },
+
+  // 双指捏合缩放 + 平移（两指都落在画布上时接管，单指手势让位）
+  initTouch() {
+    const pts = new Map();
+    let base = null;
+    const span = () => { const [a, b] = [...pts.values()]; return { d: Math.hypot(a.x - b.x, a.y - b.y), cx: (a.x + b.x) / 2, cy: (a.y + b.y) / 2 }; };
+    this.elWrap.addEventListener('pointerdown', (e) => {
+      if (e.pointerType !== 'touch') return;
+      pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (pts.size === 2) {
+        const wr = this.elWrap.getBoundingClientRect(), sp = span();
+        base = { ...sp, zoom: this.zoom, pan: { ...this.pan }, wr };
+        this._pinch = true;
+      }
+    }, true);
+    window.addEventListener('pointermove', (e) => {
+      if (!pts.has(e.pointerId)) return;
+      pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (pts.size !== 2 || !base) return;
+      const sp = span(), wr = base.wr;
+      const z = Math.min(2.5, Math.max(0.35, base.zoom * sp.d / Math.max(base.d, 1)));
+      // 以双指中点为锚：中点下的世界坐标保持不动，同时跟随中点平移
+      const wx = (base.cx - wr.left - base.pan.x) / base.zoom, wy = (base.cy - wr.top - base.pan.y) / base.zoom;
+      this.zoom = z;
+      this.pan.x = sp.cx - wr.left - wx * z;
+      this.pan.y = sp.cy - wr.top - wy * z;
+      this.applyView();
+    });
+    const end = (e) => {
+      if (!pts.delete(e.pointerId)) return;
+      if (pts.size < 2) { base = null; setTimeout(() => { this._pinch = false; }, 0); }
+    };
+    window.addEventListener('pointerup', end);
+    window.addEventListener('pointercancel', end);
   },
 
   // 视图变换
@@ -1298,6 +1334,11 @@ const Editor = {
 
   // 背景手势：框选 / 平移
   bgGesture(e) {
+    // 触屏：单指拖空白 = 平移（框选留给鼠标），双指捏合由 initTouch 处理
+    if (e.pointerType === 'touch') {
+      if (this.pending && !this.wiring) { this.pending = null; this.mouse = null; this.snapTarget = null; this.refresh(); }
+      this.panGesture(e); return;
+    }
     if (e.button === 1 || e.button === 2 || this.spaceDown) { this.panGesture(e); return; }
     if (e.button !== 0) return;
     const sx = e.clientX, sy = e.clientY;
@@ -1347,6 +1388,7 @@ const Editor = {
     const ox = this.pan.x, oy = this.pan.y;
     this.panned = false;
     const move = (ev) => {
+      if (ev.pointerId !== e.pointerId || this._pinch) return;
       if (Math.abs(ev.clientX - sx) + Math.abs(ev.clientY - sy) > 3) this.panned = true;
       this.pan.x = ox + (ev.clientX - sx);
       this.pan.y = oy + (ev.clientY - sy);

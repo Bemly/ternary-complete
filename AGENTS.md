@@ -20,6 +20,12 @@
   `loadRefSolution()` 载入）。工具条「参考解」按钮载入后自动跑测试。汇编关的 `starter` 只能是骨架，不得直接通过测试。
   `scripts/check_solutions.js` 用同一份规格做全关 headless 回归（含元件箱合规、starter 不得是答案、中英用例一致），
   元件语义或关卡改动后必跑
+- `bili.js` ：B站 Toy 平台接入层 `Bili`（云存档、排行榜、分享 / 二维码接力、账号资料、App 容器）。
+  SDK 由 `index.html` 头部按官方方式引入；不在 Toy 环境、SDK 没加载、未登录时一律静默降级为纯本地，
+  任何 Toy 能力调用前先 `Bili.can()`。用量约定：云存档只在通关 / 离开布线台 / 页面隐藏时写差量，
+  排行榜只在通关时提交（榜 1 通关数，榜 2 精简分），榜单本地缓存、手动刷新，限流 307044 指数退避；
+  云存储单值 ≤1024 字节、≤128 key，电路经 `packCircuit` 压缩后按字节切片；`toyOpenId` 不落盘不打日志。
+  App 内不用原生 `confirm`，统一走 `ask()` 弹窗。深链 `index.html?lv=<关卡 id>` 用于分享与扫码接力。
 - `scripts/check_terms.py` ：名称检测脚本（用法见下）。`scripts/install-hooks.sh` 负责把它装成
   `.git/hooks/pre-commit`，注意 hooks 目录本身不进版本库，换机器克隆后重跑一次安装脚本
 

@@ -35,6 +35,13 @@ No build step, no dependencies. Static files only.
   its tests.
 - **Dev mode** (top right of the roadmap) unlocks every level (`?dev` also works).
 
+## bilibili Toy integration
+
+The bilibili Toy JS SDK is wired in through `bili.js`. Inside a Toy it turns on automatically; locally or when
+logged out the game falls back to local saves: cloud save (progress, circuits and code follow the account),
+two leaderboards (levels cleared, lean score), share sheet in the app and QR relay on the web (deep link
+`?lv=<level id>`), account avatar and nickname, app safe areas, a rotate-to-landscape hint, and touch pan / pinch zoom.
+
 ## Level map
 
 | # | Level | Chapter |

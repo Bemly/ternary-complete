@@ -4,9 +4,10 @@
 const store = {
   key: 'ternary-complete-v1',
   load() { try { return JSON.parse(localStorage.getItem(this.key)) || {}; } catch { return {}; } },
-  save(o) { localStorage.setItem(this.key, JSON.stringify(o)); },
+  save(o) { try { localStorage.setItem(this.key, JSON.stringify(o)); } catch {} },
 };
-let S = Object.assign({ done: [], cur: 't0_wire', circuits: {}, code: {}, dev: false }, store.load());
+const freshState = () => ({ done: [], cur: 't0_wire', circuits: {}, code: {}, best: {}, ts: {}, dev: false, profileOk: false });
+let S = Object.assign(freshState(), store.load());
 if (!LEVELS.some(l => l.id === S.cur)) S.cur = 't0_wire';
 if (location.search.includes('dev')) S.dev = true;
 
@@ -15,6 +16,19 @@ const $ = id => document.getElementById(id);
 
 function toast(m) { Editor.toast(m); }
 function persist() { store.save(S); }
+// 云存档只在关键节点同步（通关、离开布线台、页面隐藏），见 bili.js 顶部约定
+function cloudSync() { saveCurrent(); Bili.cloudSave(S); }
+
+// 应用内确认框（B站 App 的 WebView 里不用原生 confirm）
+function ask(msg) {
+  return new Promise(res => {
+    $('ask-text').textContent = msg;
+    $('ask-modal').hidden = false;
+    const done = v => { $('ask-modal').hidden = true; $('btn-ask-yes').onclick = $('btn-ask-no').onclick = null; res(v); };
+    $('btn-ask-yes').onclick = () => done(true);
+    $('btn-ask-no').onclick = () => done(false);
+  });
+}
 
 // 关卡文案：英文模式且存在覆写则用英文
 function LText(lv, f) {
@@ -179,7 +193,9 @@ function renderTree() {
 }
 
 function showMap() {
+  const fromGame = !$('game-view').hidden;
   saveCurrent();
+  if (fromGame) Bili.cloudSave(S);
   // 先显形再渲染：路线图导线端点需实测符号墨盒，藏着量全是 0
   $('map-view').hidden = false;
   $('game-view').hidden = true;
@@ -256,10 +272,12 @@ function loadLevel(id) {
 function saveCurrent() {
   const lv = LEVELS.find(l => l.id === S.cur);
   if (!lv) return;
-  if (lv.kind === 'circuit' && Editor.circuit) S.circuits[S.cur] = Editor.serialize();
+  // 只有内容真的变了才更新时间戳（云端合并按每关时间戳取较新的一份）
+  const stamp = (kind, v) => { if (S[kind][S.cur] !== v) { S[kind][S.cur] = v; S.ts[S.cur] = Date.now(); } };
+  if (lv.kind === 'circuit' && Editor.circuit) stamp('circuits', Editor.serialize());
   if (lv.kind === 'program') {
     const el = $('cpu-code');
-    if (el) S.code[S.cur] = el.value;
+    if (el) stamp('code', el.value);
   }
   persist();
 }
@@ -303,8 +321,29 @@ function progTestsOf(lv) {
   return lv.progTests();
 }
 
+// 精简分：每个通过的电路关 10 分，比参考解每少 1 个元件 +5、多 1 个 -5，单关最低 1 分
+function leanScore() {
+  let s = 0;
+  for (const id of S.done) {
+    const spec = REF_SPEC[id];
+    if (!spec || S.best[id] === undefined) continue;
+    s += Math.max(1, 10 + 5 * (spec.nodes.length - S.best[id]));
+  }
+  return s;
+}
+
 function win(lv) {
-  if (!S.done.includes(lv.id)) { S.done.push(lv.id); persist(); }
+  if (!S.done.includes(lv.id)) S.done.push(lv.id);
+  if (lv.kind === 'circuit' && Editor.circuit) {
+    const n = Editor.circuit.nodes.filter(x => x.type !== 'INPUT' && x.type !== 'OUTPUT').length;
+    if (S.best[lv.id] === undefined || n < S.best[lv.id]) S.best[lv.id] = n;
+  }
+  persist();
+  cloudSync();
+  // 排行榜只在通关时提交（服务端只保留最高分，重复提交不会覆盖）
+  Bili.submit(1, doneCount());
+  Bili.submit(2, leanScore());
+  rankCache = {};
   renderTree();
   $('win-title').textContent = LText(lv, 'name') + ' ' + t('winClear');
   $('win-text').textContent = LText(lv, 'win') || t('winDefault');
@@ -316,13 +355,15 @@ function win(lv) {
     if (fresh.length) extra.push(t('winUnlock', fresh.map(compName).join(' · ')));
   }
   $('win-extra').innerHTML = extra.map(x => `<span>${x}</span>`).join('');
+  $('btn-share').hidden = !Bili.can('share');
+  $('btn-win-qr').hidden = Bili.can('share') || !Bili.can('getQrCode');
   $('win-modal').hidden = false;
 }
 
-$('btn-ref').onclick = () => {
+$('btn-ref').onclick = async () => {
   const lv = LEVELS.find(l => l.id === S.cur);
   if (!lv) return;
-  if (!confirm(t('refConfirm'))) return;
+  if (!(await ask(t('refConfirm')))) return;
   saveCurrent();
   if (lv.kind === 'program') {
     if (!loadRefSolution(lv.id)) return;
@@ -510,8 +551,13 @@ $('conv-b2d').onclick = () => {
 // 帮助 / 重置 / 语言
 $('btn-help').onclick = () => { $('help-modal').hidden = false; };
 $('btn-help-close').onclick = () => { $('help-modal').hidden = true; };
-$('btn-reset').onclick = () => {
-  if (confirm(t('confirmReset'))) { const dev = S.dev; S = { done: [], cur: 't0_wire', circuits: {}, code: {}, dev }; persist(); showMap(); toast(t('resetDone')); }
+$('btn-reset').onclick = async () => {
+  if (!(await ask(t('confirmReset')))) return;
+  const keep = { dev: S.dev, profileOk: S.profileOk };
+  S = Object.assign(freshState(), keep);
+  persist();
+  Bili.cloudSave(S);   // 云端也清空，否则下次打开会被合并回来
+  showMap(); toast(t('resetDone'));
 };
 $('btn-dev').onclick = () => {
   S.dev = !S.dev; persist(); renderTree();
@@ -520,6 +566,116 @@ $('btn-dev').onclick = () => {
 $('btn-lang').onclick = () => setLang(LANG === 'zh' ? 'en' : 'zh');
 
 window.addEventListener('beforeunload', saveCurrent);
+document.addEventListener('visibilitychange', () => { if (document.hidden) cloudSync(); });
+
+// ---------- B站 Toy 平台 ----------
+let rankCache = {};
+const rankSel = { board: 1, period: 'all' };
+async function renderRank(force) {
+  const key = rankSel.board + ':' + rankSel.period;
+  $('rank-note').textContent = t(rankSel.board === 1 ? 'rankNote1' : 'rankNote2');
+  const list = $('rank-list'), mine = $('rank-mine');
+  if (force || !rankCache[key]) {
+    list.innerHTML = `<li class="rank-msg">${t('rankLoading')}</li>`; mine.textContent = '';
+    try {
+      const [rows, me] = await Promise.all([Bili.rankList(rankSel.board, rankSel.period), Bili.myRank(rankSel.board, rankSel.period)]);
+      rankCache[key] = { rows, me };
+    } catch {
+      list.innerHTML = `<li class="rank-msg">${t('rankErr')}</li>`;
+      return;
+    }
+  }
+  const { rows, me } = rankCache[key];
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  list.innerHTML = rows.length
+    ? rows.map(r => `<li class="${r.rank <= 3 ? 'top' : ''}"><b>${r.rank}</b><img src="${esc(r.avatar)}" alt="" referrerpolicy="no-referrer"><span>${esc(r.nickname)}</span><em>${r.score}</em></li>`).join('')
+    : `<li class="rank-msg">${t('rankEmpty')}</li>`;
+  mine.textContent = me ? (me.ranked ? t('rankMine', me.rank, me.score) : t('rankMineNo')) : t('rankMineLogin');
+}
+$('btn-rank').onclick = () => { $('rank-modal').hidden = false; renderRank(false); };
+$('btn-rank-close').onclick = () => { $('rank-modal').hidden = true; };
+$('btn-rank-refresh').onclick = () => renderRank(true);
+$('rank-board').onclick = (e) => {
+  const b = e.target.closest('[data-board]'); if (!b) return;
+  rankSel.board = Number(b.dataset.board);
+  $('rank-board').querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b));
+  renderRank(false);
+};
+$('rank-period').onclick = (e) => {
+  const b = e.target.closest('[data-period]'); if (!b) return;
+  rankSel.period = b.dataset.period;
+  $('rank-period').querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b));
+  renderRank(false);
+};
+
+function showProfile(p) {
+  if (!p) return;
+  $('profile-ava').innerHTML = p.avatar ? `<img src="${p.avatar}" alt="" referrerpolicy="no-referrer">` : '';
+  $('profile-name').textContent = p.nickname || t('profileBtn');
+  $('btn-profile').classList.add('on');
+}
+$('btn-profile').onclick = async () => {
+  try {
+    const p = await Bili.getProfile();
+    if (!p) throw new Error('none');
+    S.profileOk = true; persist();
+    showProfile(p);
+  } catch { toast(t('profileFail')); }
+};
+
+// 分享 / 二维码：都指向某一关的深链 index.html?lv=<id>
+const levelPath = id => `index.html?lv=${encodeURIComponent(id)}`;
+function nextLevelId() {
+  const i = LEVELS.findIndex(l => l.id === S.cur);
+  return (LEVELS[i + 1] || LEVELS[i] || LEVELS[0]).id;
+}
+async function showQr(path) {
+  try {
+    const { base64 } = await Bili.qr(path);
+    $('qr-img').src = base64;
+    $('qr-modal').hidden = false;
+  } catch { toast(t('qrFail')); }
+}
+$('btn-share').onclick = async () => { try { await Bili.share(levelPath(nextLevelId())); } catch { toast(t('shareFail')); } };
+$('btn-win-qr').onclick = () => { cloudSync(); showQr(levelPath(nextLevelId())); };
+$('btn-relay').onclick = () => { cloudSync(); showQr(levelPath(S.cur)); };
+$('btn-qr-close').onclick = () => { $('qr-modal').hidden = true; };
+
+// App 容器：安全区留白；手机竖屏进布线台时提示横屏
+let container = null;
+function applyContainer() {
+  const st = container;
+  const root = document.documentElement.style;
+  const sa = (st && st.safeArea) || { top: 0, right: 0, bottom: 0, left: 0 };
+  root.setProperty('--sat', (sa.top || 0) + 'px'); root.setProperty('--sar', (sa.right || 0) + 'px');
+  root.setProperty('--sab', (sa.bottom || 0) + 'px'); root.setProperty('--sal', (sa.left || 0) + 'px');
+  const portraitPhone = st && st.deviceType === 'phone' && st.orientation === 'portrait';
+  $('landscape-tip').hidden = !(portraitPhone && !$('game-view').hidden && !S.landDismiss);
+}
+$('btn-landscape').onclick = () => Bili.landscape();
+$('btn-land-x').onclick = () => { S.landDismiss = true; applyContainer(); };
+new MutationObserver(applyContainer).observe($('game-view'), { attributes: true, attributeFilter: ['hidden'] });
+
+async function bootPlatform() {
+  await Bili.init();
+  if (!Bili.sdk) return;
+  $('btn-rank').hidden = !Bili.can('getRankList');
+  $('btn-profile').hidden = !Bili.can('getUserProfile');
+  $('btn-relay').hidden = Bili.can('share') || !Bili.can('getQrCode');
+  Bili.onLimit = () => toast(t('cloudLimit'));
+  Bili.watchContainer(st => { container = st; applyContainer(); });
+  // 之前授权过就直接复用，平台不会再弹窗；从没授权过则等玩家自己点
+  if (S.profileOk) { try { showProfile(await Bili.getProfile()); } catch {} }
+  const C = await Bili.cloudLoad();
+  if (Bili.merge(S, C)) {
+    persist();
+    if (!$('map-view').hidden) renderTree();
+    $('stat-progress').textContent = `${doneCount()}/${LEVELS.length}`;
+    toast(t('cloudMerged'));
+  }
+  // 本地有、云端没有的进度（比如接入前玩的）补传一次
+  if (Bili.cloud === 'on') Bili.cloudSave(S);
+}
 
 // 启动：先停在独立路线图
 Editor.init();
@@ -528,6 +684,18 @@ $('btn-lang').textContent = t('langBtn');
 renderTree();
 showMap();
 if (!store.load().done?.length) $('help-modal').hidden = false;
+// 深链 ?lv=<id>：分享 / 扫码进来直接打开那一关（未解锁则停在路线图）
+{
+  const q = new URLSearchParams(location.search).get('lv');
+  const i = LEVELS.findIndex(l => l.id === q);
+  if (i >= 0 && isUnlocked(i)) { $('help-modal').hidden = true; loadLevel(q); }
+}
+bootPlatform().then(() => {
+  const q = new URLSearchParams(location.search).get('lv');
+  const i = LEVELS.findIndex(l => l.id === q);
+  // 云端进度到了以后才解锁的深链关卡，补开一次
+  if (i >= 0 && S.cur !== q && isUnlocked(i) && !$('map-view').hidden) { $('help-modal').hidden = true; loadLevel(q); }
+});
 // webfont 异步到达会改变端子高度，就绪后重排一次走线，避免几何漂移
 if (document.fonts && document.fonts.ready) {
   document.fonts.ready.then(() => {

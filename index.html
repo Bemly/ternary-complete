@@ -7,6 +7,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@600;900&family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css">
+<!-- B站 Toy SDK：不在 Toy 环境或加载失败时 bili.js 自动降级为纯本地 -->
+<script src="//s1.hdslb.com/bfs/seed/toy/app/sdk/toy-sdk.js"></script>
 </head>
 <body>
 <div id="bg-grid"></div>
@@ -22,7 +24,9 @@
   </div>
   <div id="crumb" class="tb-crumb"><span id="level-kicker">路线图</span><span id="level-name-top">选择一个任务进入布线台</span></div>
   <div class="tb-right">
-    <div class="stat"><b id="stat-progress">0/18</b><span data-i18n="done">已完成</span></div>
+    <button id="btn-rank" class="ghost-btn" hidden><svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="square" aria-hidden="true"><path d="M2 14 V9 H5.5 V14 M6.25 14 V4 H9.75 V14 M10.5 14 V7 H14 V14"/></svg> <span data-i18n="rankBtn">排行榜</span></button>
+    <button id="btn-profile" class="ghost-btn" hidden><span id="profile-ava"></span><span id="profile-name" data-i18n="profileBtn">B站账号</span></button>
+    <div class="stat"><b id="stat-progress">0/25</b><span data-i18n="done">已完成</span></div>
     <div class="stat"><b id="stat-gates">0</b><span data-i18n="gatesW">门数</span></div>
     <button id="btn-converter" class="ghost-btn">⇄ <span data-i18n="converter">换算</span></button>
     <button id="btn-help" class="ghost-btn">？</button>
@@ -42,6 +46,7 @@
       <div><i class="dot done"></i><span data-i18n="legDone">已通过</span></div>
       <div><i class="dot cur"></i><span data-i18n="legCur">当前位置</span></div>
       <div><i class="dot lock"></i><span data-i18n="legLock">未解锁</span></div>
+      <button id="btn-relay" class="ghost-btn" hidden><svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="square" aria-hidden="true"><path d="M2 2 H6 V6 H2 Z M10 2 H14 V6 H10 Z M2 10 H6 V14 H2 Z M10 10 H11.5 M14 10 V14 H10 V12"/></svg> <span data-i18n="qrBtn">扫码到手机</span></button>
       <button id="btn-dev" class="ghost-btn" title="开发者模式：解锁全部关卡"><svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="square" aria-hidden="true"><rect x="3.5" y="7" width="9" height="7"/><path d="M5.5 7 V5 A2.5 2.5 0 0 1 10.4 5.4 M10.4 5.4 V6.6"/></svg> 开发者模式：关</button>
     </div>
   </div>
@@ -174,6 +179,45 @@ HLT   标签写为  L:  注释用 #</pre>
 
 <div id="toast"></div>
 
+<!-- 排行榜 -->
+<div id="rank-modal" class="modal" hidden>
+  <div class="win-card wide">
+    <div class="win-kicker" data-i18n="rankKicker">排行榜</div>
+    <div class="rank-tabs">
+      <span class="seg" id="rank-board"><button data-board="1" class="on" data-i18n="rankB1">通关数</button><button data-board="2" data-i18n="rankB2">精简分</button></span>
+      <span class="seg" id="rank-period"><button data-period="all" class="on" data-i18n="rankAll">总榜</button><button data-period="week" data-i18n="rankWeek">本周</button><button data-period="day" data-i18n="rankDay">今日</button></span>
+      <button id="btn-rank-refresh" class="ghost-btn" data-i18n="rankRefresh">刷新</button>
+    </div>
+    <p class="rank-note" id="rank-note"></p>
+    <div id="rank-mine"></div>
+    <ol id="rank-list"></ol>
+    <div class="win-btns"><button id="btn-rank-close" class="run-btn"><span data-i18n="closeBtn">关闭</span></button></div>
+  </div>
+</div>
+
+<!-- 二维码接力 -->
+<div id="qr-modal" class="modal" hidden>
+  <div class="win-card qr-card">
+    <div class="win-kicker" data-i18n="qrKicker">扫码继续</div>
+    <h3 data-i18n="qrTitle">用 B站 App 扫码，在手机上接着玩</h3>
+    <img id="qr-img" alt="">
+    <p class="dim" data-i18n="qrHint">进度跟随 B站账号云存档，登录同一账号即可接上。</p>
+    <div class="win-btns"><button id="btn-qr-close" class="run-btn"><span data-i18n="closeBtn">关闭</span></button></div>
+  </div>
+</div>
+
+<!-- 通用确认（App 内不用原生 confirm） -->
+<div id="ask-modal" class="modal" hidden>
+  <div class="win-card">
+    <div class="win-kicker" data-i18n="askKicker">确认</div>
+    <p id="ask-text"></p>
+    <div class="win-btns"><button id="btn-ask-no" class="act-btn"><span data-i18n="askNo">取消</span></button><button id="btn-ask-yes" class="run-btn"><span data-i18n="askYes">确定</span></button></div>
+  </div>
+</div>
+
+<!-- 手机竖屏提示：布线台需要横屏 -->
+<div id="landscape-tip" hidden><span data-i18n="landTip">布线台横屏更好用</span><button id="btn-landscape" class="run-btn"><span data-i18n="landBtn">切换横屏</span></button><button id="btn-land-x" class="ghost-btn">×</button></div>
+
 <div id="win-modal" hidden>
   <div class="win-card">
     <div class="win-kicker" data-i18n="winKicker">✓ 验证通过</div>
@@ -182,6 +226,8 @@ HLT   标签写为  L:  注释用 #</pre>
     <div id="win-extra"></div>
     <div class="win-btns">
       <button id="btn-map2" class="act-btn"><span data-i18n="winMap">路线图</span></button>
+      <button id="btn-share" class="act-btn" hidden><span data-i18n="shareBtn">分享</span></button>
+      <button id="btn-win-qr" class="act-btn" hidden><span data-i18n="qrBtn">扫码到手机</span></button>
       <button id="btn-next" class="run-btn"><span data-i18n="winNext">下一关 →</span></button>
     </div>
   </div>
@@ -200,6 +246,7 @@ HLT   标签写为  L:  注释用 #</pre>
       <li data-i18n="h5"><b>过关：</b>底部测试条列出全部用例，点右上「运行测试」全绿即过关，解锁新标准件。</li>
       <li data-i18n="h6"><b>时钟：</b>含触发器的关用「滴答」推进，序列测试每步自动滴答。自动档位 1/2/5/10 TPS，拍数记在工具条；每次滴答都会记进下方<b>时间轴</b>波形。</li>
       <li data-i18n="h7"><b>调试：</b>左上输入输出总览条点输入可切换；右下「开发者模式」可直接全开 18 关。</li>
+      <li data-i18n="h9"><b>触屏：</b>单指拖空白处平移，双指捏合缩放；点一下导线或元件选中，再点工具条的删除。</li>
       <li data-i18n="h8"><b>布线规矩：</b>任何两根导线只允许交叉穿过，重叠或贴靠都不允许，没有例外；违规落线自动挤到旁边空位，实在没空位才回退上一步。</li>
     </ol>
     <div class="win-btns"><button id="btn-help-close" class="run-btn"><span data-i18n="helpStart">开始搭建</span></button></div>
@@ -213,6 +260,7 @@ HLT   标签写为  L:  注释用 #</pre>
 <script src="cpu.js"></script>
 <script src="icons.js"></script>
 <script src="i18n.js"></script>
+<script src="bili.js"></script>
 <script src="editor.js"></script>
 <script src="app.js"></script>
 </body>

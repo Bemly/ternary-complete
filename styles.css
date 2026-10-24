@@ -40,7 +40,7 @@ html,body{margin:0;padding:0;background:var(--bg);color:var(--txt);font-family:'
 .tb-btn,.act-btn,.run-btn,.ghost-btn{display:inline-flex;align-items:center;gap:6px;justify-content:center}
 
 /* 路线图（独立全屏） */
-#map-view{height:calc(100vh - 48px);overflow:auto;padding:26px 30px 60px;background:radial-gradient(ellipse at 50% -10%,#1c2230 0%,var(--bg) 60%)}
+#map-view{overflow:auto;padding:26px 30px 60px;background:radial-gradient(ellipse at 50% -10%,#1c2230 0%,var(--bg) 60%)}
 #map-view[hidden]{display:none}
 .map-head{display:flex;justify-content:space-between;align-items:flex-end;gap:20px;max-width:1200px;margin:0 auto 18px}
 .map-head h2{margin:0;font-family:'Noto Serif SC',serif;font-size:24px}
@@ -88,7 +88,7 @@ html,body{margin:0;padding:0;background:var(--bg);color:var(--txt);font-family:'
 .setun-note b{color:var(--txt)} .setun-note strong{color:var(--pos)}
 
 /* 布线台 */
-#game-view{height:calc(100vh - 48px);display:flex;flex-direction:column}
+#game-view{display:flex;flex-direction:column}
 #game-view[hidden]{display:none}
 #game-toolbar{display:flex;align-items:center;gap:14px;padding:8px 12px;background:#14171d;border-bottom:1px solid #262c38}
 #btn-back{flex:none}
@@ -318,3 +318,45 @@ html,body{margin:0;padding:0;background:var(--bg);color:var(--txt);font-family:'
 #timeline svg text{font-family:var(--mono)}
 #timeline .tl-empty{color:var(--faint);font-size:12px;padding:8px 4px}
 #btn-dev.on{color:var(--amber);border-color:var(--amber)}
+
+/* B站 Toy 接入：账号、排行榜、二维码、确认框、横屏提示、App 安全区 */
+:root{--sat:0px;--sar:0px;--sab:0px;--sal:0px}
+body{padding:var(--sat) var(--sar) var(--sab) var(--sal);box-sizing:border-box}
+#map-view,#game-view{height:calc(100vh - 48px - var(--sat) - var(--sab))}
+#btn-profile{gap:6px;max-width:160px}
+#btn-profile #profile-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#btn-profile.on{color:var(--txt);border-color:#5a4a28}
+#profile-ava img{width:20px;height:20px;display:block;border:1px solid var(--line2)}
+.modal{position:fixed;inset:0;background:rgba(4,6,10,.72);display:flex;align-items:center;justify-content:center;z-index:55}
+.modal[hidden]{display:none}
+.rank-tabs{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:10px 0 6px}
+.seg{display:inline-flex;border:1px solid var(--line2)}
+.seg button{background:none;border:0;border-right:1px solid var(--line2);color:var(--dim);padding:6px 12px;cursor:pointer;font-size:12.5px}
+.seg button:last-child{border-right:0}
+.seg button.on{background:var(--amber);color:#14100a}
+.rank-note{font-size:12px !important;margin:2px 0 6px}
+#rank-mine{font-family:var(--mono);font-size:12.5px;color:var(--amber);border-left:3px solid var(--amber);padding:4px 10px;background:rgba(255,183,77,.06)}
+#rank-list{list-style:none;margin:8px 0 0;padding:0;max-height:46vh;overflow:auto;border:1px solid var(--line)}
+#rank-list li{display:flex;align-items:center;gap:10px;padding:6px 10px;border-bottom:1px solid #222834;font-size:13px;color:var(--txt)}
+#rank-list li b{font-family:var(--mono);width:28px;color:var(--dim)}
+#rank-list li.top b{color:var(--amber)}
+#rank-list li img{width:26px;height:26px;border:1px solid var(--line2);background:#10131a}
+#rank-list li span{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#rank-list li em{font-style:normal;font-family:var(--mono);color:var(--good)}
+#rank-list li.rank-msg{color:var(--dim);justify-content:center}
+.qr-card{max-width:380px;text-align:center}
+#qr-img{width:240px;height:240px;background:#fff;padding:8px;margin:8px auto;display:block}
+#landscape-tip{position:fixed;left:50%;bottom:calc(16px + var(--sab));transform:translateX(-50%);z-index:58;display:flex;align-items:center;gap:10px;background:#1d2129;border:1px solid var(--amber);padding:8px 10px 8px 14px;font-size:13px;white-space:nowrap}
+#landscape-tip[hidden]{display:none}
+/* 触屏：画布自己处理手势，不让浏览器滚动 / 缩放页面 */
+#board-wrap{touch-action:none}
+/* 手机横屏等矮屏：压缩顶栏、隐藏时间轴，给画布让出高度 */
+@media (max-height:520px){
+  #topbar{height:40px} .stat span{display:none} .brand-mini .en{display:none}
+  #map-view,#game-view{height:calc(100vh - 40px - var(--sat) - var(--sab))}
+  #game-toolbar{padding:4px 8px;gap:6px} .lv-info{display:none}
+  .act-btn.compact > span{display:none} .act-btn{padding:6px 8px} .run-btn{padding:6px 12px}
+  #timeline-strip{display:none !important}
+  #palette-rail{width:150px} .pal-grid{grid-template-columns:1fr} .pal-prev{height:28px}
+  #board-hint{display:none}
+}
