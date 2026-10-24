@@ -319,7 +319,6 @@ html,body{margin:0;padding:0;background:var(--bg);color:var(--txt);font-family:'
 #timeline{max-height:118px;overflow:auto;padding:2px 8px 6px}
 #timeline svg text{font-family:var(--mono)}
 #timeline .tl-empty{color:var(--faint);font-size:12px;padding:8px 4px}
-#btn-dev.on{color:var(--amber);border-color:var(--amber)}
 
 /* B站 Toy 接入：账号、排行榜、二维码、确认框、横屏提示、App 安全区 */
 :root{--sat:0px;--sar:0px;--sab:0px;--sal:0px}

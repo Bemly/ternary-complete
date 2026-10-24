@@ -6,13 +6,10 @@ const store = {
   load() { try { return JSON.parse(localStorage.getItem(this.key)) || {}; } catch { return {}; } },
   save(o) { try { localStorage.setItem(this.key, JSON.stringify(o)); } catch {} },
 };
-const freshState = () => ({ done: [], cur: 't0_wire', circuits: {}, code: {}, best: {}, ts: {}, dev: false, profileOk: false });
+const freshState = () => ({ done: [], cur: 't0_wire', circuits: {}, code: {}, best: {}, ts: {}, profileOk: false });
 let S = Object.assign(freshState(), store.load());
 if (!LEVELS.some(l => l.id === S.cur)) S.cur = 't0_wire';
-// 开发者模式（全关解锁）只在本机调试时可用：线上（Toy / 任何非本机域名）一律关闭并隐藏入口
-const DEV_OK = location.protocol === 'file:' || /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname);
-if (!DEV_OK) S.dev = false;
-else if (new URLSearchParams(location.search).has('dev')) S.dev = true;
+delete S.dev;   // 旧存档里的全关解锁开关已废弃
 
 let cpuSession = null;
 const $ = id => document.getElementById(id);
@@ -39,8 +36,8 @@ function LText(lv, f) {
   return lv[f];
 }
 function chIndex(lv) { return Math.max(0, CHAPTERS.indexOf(lv.ch)); }
-// 解锁规则：第一关、前一关已通过、或开发者模式。插入新关后老存档也能顺着接上
-function isUnlocked(i) { return S.dev || i === 0 || S.done.includes(LEVELS[i - 1].id); }
+// 解锁规则：第一关，或前一关已通过。插入新关后老存档也能顺着接上
+function isUnlocked(i) { return i === 0 || S.done.includes(LEVELS[i - 1].id); }
 function doneCount() { return S.done.filter(id => LEVELS.some(l => l.id === id)).length; }
 function chName(i) { return chList()[i] || ''; }
 
@@ -211,12 +208,6 @@ function renderTree() {
     }
   }
   $('stat-progress').textContent = `${doneCount()}/${LEVELS.length}`;
-  const devBtn = $('btn-dev');
-  if (devBtn) {
-    devBtn.hidden = !DEV_OK;
-    devBtn.innerHTML = (S.dev ? ICONS.unlock : ICONS.lock) + `<span>${S.dev ? t('devOn') : t('devOff')}</span>`;
-    devBtn.classList.toggle('on', !!S.dev);
-  }
 }
 
 function showMap() {
@@ -613,16 +604,11 @@ $('btn-help').onclick = () => { $('help-modal').hidden = false; };
 $('btn-help-close').onclick = () => { $('help-modal').hidden = true; };
 $('btn-reset').onclick = async () => {
   if (!(await ask(t('confirmReset')))) return;
-  const keep = { dev: S.dev, profileOk: S.profileOk };
+  const keep = { profileOk: S.profileOk };
   S = Object.assign(freshState(), keep);
   persist();
   Bili.cloudSave(S);   // 云端也清空，否则下次打开会被合并回来
   showMap(); toast(t('resetDone'));
-};
-$('btn-dev').onclick = () => {
-  if (!DEV_OK) return;
-  S.dev = !S.dev; persist(); renderTree();
-  toast(S.dev ? t('devToastOn') : t('devToastOff'));
 };
 $('btn-lang').onclick = () => setLang(LANG === 'zh' ? 'en' : 'zh');
 

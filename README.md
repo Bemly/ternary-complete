@@ -33,7 +33,6 @@ No build step, no dependencies. Static files only.
   input/output strip, and a waveform timeline sampling every tick.
 - **Reference solution** button on every level loads a verified build and runs
   its tests.
-- **Dev mode** (unlock every level) only exists when running locally (localhost or a local file, `?dev` also works); it is off and hidden anywhere else.
 
 ## bilibili Toy integration
 
