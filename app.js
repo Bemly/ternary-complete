@@ -600,8 +600,6 @@ $('conv-b2d').onclick = () => {
 };
 
 // 帮助 / 重置 / 语言
-$('btn-help').onclick = () => { $('help-modal').hidden = false; };
-$('btn-help-close').onclick = () => { $('help-modal').hidden = true; };
 $('btn-reset').onclick = async () => {
   if (!(await ask(t('confirmReset')))) return;
   const keep = { profileOk: S.profileOk };
@@ -772,18 +770,17 @@ applyI18n();
 $('btn-lang').textContent = t('langBtn');
 renderTree();
 showMap();
-if (!store.load().done?.length) $('help-modal').hidden = false;
 // 深链 ?lv=<id>：分享 / 扫码进来直接打开那一关（未解锁则停在路线图）
 {
   const q = new URLSearchParams(location.search).get('lv');
   const i = LEVELS.findIndex(l => l.id === q);
-  if (i >= 0 && isUnlocked(i)) { $('help-modal').hidden = true; loadLevel(q); }
+  if (i >= 0 && isUnlocked(i)) { loadLevel(q); }
 }
 bootPlatform().then(() => {
   const q = new URLSearchParams(location.search).get('lv');
   const i = LEVELS.findIndex(l => l.id === q);
   // 云端进度到了以后才解锁的深链关卡，补开一次
-  if (i >= 0 && S.cur !== q && isUnlocked(i) && !$('map-view').hidden) { $('help-modal').hidden = true; loadLevel(q); }
+  if (i >= 0 && S.cur !== q && isUnlocked(i) && !$('map-view').hidden) { loadLevel(q); }
 });
 // webfont 异步到达会改变端子高度，就绪后重排一次走线，避免几何漂移
 if (document.fonts && document.fonts.ready) {

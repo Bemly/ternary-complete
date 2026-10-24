@@ -86,8 +86,6 @@ html,body{margin:0;padding:0;background:var(--bg);color:var(--txt);font-family:'
 .mcell:hover:not(:disabled) .mshape{filter:drop-shadow(0 0 9px rgba(255,183,77,.9))}
 .mcell:disabled .mshape{opacity:.45}
 .mcell:disabled .mcap{opacity:.45}
-.setun-note{max-width:1200px;margin:20px auto 0;border:1px dashed var(--line2);border-radius:10px;padding:12px 14px;font-size:13px;color:var(--dim);background:rgba(29,33,41,.6)}
-.setun-note b{color:var(--txt)} .setun-note strong{color:var(--pos)}
 
 /* 布线台 */
 #game-view{display:flex;flex-direction:column}
@@ -260,8 +258,8 @@ html,body{margin:0;padding:0;background:var(--bg);color:var(--txt);font-family:'
 
 #toast{position:fixed;bottom:70px;left:50%;transform:translateX(-50%) translateY(10px);background:#222835;border:1px solid var(--amber);padding:10px 16px;border-radius:9px;opacity:0;transition:.2s;z-index:60;font-size:13px}
 #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
-#win-modal,#help-modal,#info-modal{position:fixed;inset:0;background:rgba(4,6,10,.72);display:flex;align-items:center;justify-content:center;z-index:50}
-#win-modal[hidden],#help-modal[hidden],#info-modal[hidden]{display:none}
+#win-modal,#info-modal{position:fixed;inset:0;background:rgba(4,6,10,.72);display:flex;align-items:center;justify-content:center;z-index:50}
+#win-modal[hidden],#info-modal[hidden]{display:none}
 .win-card{background:linear-gradient(180deg,#242b38,#14171d);border:1px solid var(--amber);border-radius:14px;padding:22px;max-width:440px;width:92%}
 .win-card.wide{max-width:620px;max-height:84vh;overflow:auto}
 .win-kicker{font-family:var(--mono);color:var(--good);letter-spacing:2px;font-size:12px}
