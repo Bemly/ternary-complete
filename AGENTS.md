@@ -1,24 +1,25 @@
 # AGENTS.md：三进制完备 (Ternary Complete)
 
 > 平衡三进制闯关式数字逻辑网页游戏：从 TNAND 出发，经阈值门、MUX、加法器、寄存器、内存、ALU，
-> 最终在 TRIT-3 CPU 上写汇编。共 18 关。
+> 最终在 TRIT-3 CPU 上写汇编。共 25 关。
 
 ## 目录
 
 - `index.html` ：页面结构（路线图独立页 + 全屏布线台 + 底部测试条 + 弹窗）
 - `styles.css` ：全站样式，见下「UI 约束」
 - `ternary.js` ：三值逻辑核心（STI/NTI/PTI/MIN/MAX/MUX、半加/全加、十进制与平衡三进制互转）
-- `levels.js` ：元件定义 `COMP_DEFS` + 18 关 `LEVELS`（组合用 `tests()`，时序用 `steps()`，语义均为「置输入，滴答，检查」）
+- `levels.js` ：元件定义 `COMP_DEFS` + 25 关 `LEVELS`（组合用 `tests()`，时序用 `steps()`，语义均为「置输入，滴答，检查」）
 - `editor.js` ：电路编辑器 + 仿真器（求值/滴答/测试/序列化；键鼠交互见顶部注释约定）
 - `cpu.js` ：TRIT-3 CPU（3-trit 字，R0-R3，M0-M8）
 - `app.js` ：路线图/布线台视图切换、验证台、CPU 面板、存档（`localStorage`）
 - `icons.js` ：内联 SVG 图标库 `ICONS`（全项目唯一图标来源，禁 emoji 用它代替）
 - `i18n.js` ：界面语言字典 `I18N`（中英双份）+ `t()` 取词 + `setLang()` 切换（顶栏语言按钮，`localStorage` 记忆）
-- `levels_en.js` ：18 关英文覆写 `LEVEL_EN` + 章节名 `CHAPTERS_EN` + 元件英文名 `NAME_EN`/`DESC_EN`
+- `levels_en.js` ：全部关卡英文覆写 `LEVEL_EN` + 章节名 `CHAPTERS_EN` + 元件英文名 `NAME_EN`/`DESC_EN`
   （中文原文留在 `levels.js`，英文运行时覆写，用 `LText()`/`compName()`/`compDesc()` 取词）
-- `solutions.js` ：18 关参考解（16 关电路规格 `REF_SPEC` + `specToCircuit()` 物化 + `loadRefSolution()` 载入；
-  2 关汇编复用已验证 starter）。工具条「参考解」按钮载入后自动跑测试。
-  `scripts/check_solutions.js` 用同一份规格做全关 headless 回归，元件语义改动后必跑
+- `solutions.js` ：全关参考解（电路关规格 `REF_SPEC` + `specToCircuit()` 物化；汇编关程序 `REF_PROG`；
+  `loadRefSolution()` 载入）。工具条「参考解」按钮载入后自动跑测试。汇编关的 `starter` 只能是骨架，不得直接通过测试。
+  `scripts/check_solutions.js` 用同一份规格做全关 headless 回归（含元件箱合规、starter 不得是答案、中英用例一致），
+  元件语义或关卡改动后必跑
 - `scripts/check_terms.py` ：名称检测脚本（用法见下）。`scripts/install-hooks.sh` 负责把它装成
   `.git/hooks/pre-commit`，注意 hooks 目录本身不进版本库，换机器克隆后重跑一次安装脚本
 
@@ -71,19 +72,19 @@ node scripts/check_solutions.js
 # 逻辑回归（半加/MUX/REG/汇编参考解；i18n 字典键一致）
 node -e "
 const fs=require('fs');
-let src=fs.readFileSync('ternary.js','utf8')+'\n'+fs.readFileSync('levels.js','utf8')+'\n'+fs.readFileSync('cpu.js','utf8');
+let src=fs.readFileSync('ternary.js','utf8')+'\n'+fs.readFileSync('levels.js','utf8')+'\n'+fs.readFileSync('cpu.js','utf8')+'\n'+fs.readFileSync('i18n.js','utf8')+'\nconst Editor={};\n'+fs.readFileSync('solutions.js','utf8');
 src+=\`
-const p2=LEVELS.find(l=>l.id===\"c4_prog2\").starter;
+const p2=REF_PROG.c4_prog2;
 for(const t of [{in:[1],want:[1]},{in:[4],want:[10]}]){const r=CPU.run(p2,t.in);console.log('prog2',t.in,JSON.stringify(r.out));}
 console.log('halfAdd(-1,-1)='+JSON.stringify(halfAdd(-1,-1)));
-\`;eval(src);
+\`;eval(src);"
 node -e "
 const fs=require('fs');
 let src=fs.readFileSync('ternary.js','utf8')+'\n'+fs.readFileSync('levels.js','utf8')+'\n'+fs.readFileSync('levels_en.js','utf8')+'\n'+fs.readFileSync('i18n.js','utf8');
 src+=\`
 const zk=Object.keys(I18N.zh).sort(), ek=Object.keys(I18N.en).sort();
 console.log('i18n parity:', JSON.stringify(zk)===JSON.stringify(ek)?'OK':'DIFF '+zk.filter(k=>!ek.includes(k))+' / '+ek.filter(k=>!zk.includes(k)));
-console.log('EN levels:', Object.keys(LEVEL_EN).length+'/18');
+console.log('EN levels:', Object.keys(LEVEL_EN).length+'/'+LEVELS.length);
 \`;eval(src);"
 ```
 
@@ -102,8 +103,9 @@ console.log('EN levels:', Object.keys(LEVEL_EN).length+'/18');
   穿起止符号体按违规计，逼出紧贴的局部环线；
   路线图先挂载 canvas 再实测符号墨盒（`getBBox`）定端点，离线量尺寸全是 0。
   `showMap()` 必须先取消隐藏再 `renderTree()`，否则整图导线退化为 `M 0 0`。
-  导线只许交叉、不许重叠或贴靠：任意两根导线重叠或平行贴近（间距 <6px 且并行 >24px 同样拦截）
-  标红并拦截测试，没有例外（同网分叉仅允许钉根部 ≤24px 短共干，读作焊点）；
+  导线只许交叉、不许重叠或贴靠：任意两根**异网**导线重叠或平行贴近（间距 <6px 且并行 >24px 同样拦截）
+  标红并拦截测试，没有例外。同网（同一输出钉出发）的线电气上就是一根，允许共用主干，
+  走线器还会奖励复用同网主干；分叉处（某点同网线段合计 ≥3 个走向）画实心焊点；
   编辑手势收尾若新增重叠，先原地挤到旁边空位（`nudgeWaypoint` 同心扩散找首个干净点），
   实在没空位才自动 undo 回到上一步（redo 一并清空），只提示不保留坏线；
   无手工节点的线由 `planAllRoutes()` 自动选空走道，参考解布局必须保持零重叠。
@@ -112,9 +114,17 @@ console.log('EN levels:', Object.keys(LEVEL_EN).length+'/18');
   代价函数借鉴正统布线器（障碍边走道、交叉/间距/长度惩罚，`Editor.routeW` 可调）；
   贪心 wid 序打底，疑难导线（仍有交叉/穿体）补一次网格 A*（`astarRoute`：方向感知状态、
   拐弯/交叉/贴近代价，节点体不可进），赢了贪心才采纳且不得引入新重叠。
-  承认不如 libavoid 的可见性图最优 + 全局 rip-up，但交互帧率优先（最密关整板约 10~20ms）；
+  承认不如 libavoid 的可见性图最优 + 全局 rip-up，但交互帧率优先（最密关整板约 5ms）；
   密集电路的剩余交叉由布局密度决定，继续压要靠摆稀疏些。
-- **键鼠操作**（详见 `editor.js` 顶部注释）：输出钉按住拖到输入钉连线；
+- **元件几何**（`editor.js → shapeOf()/geomOf()`）：输入钉全在 x=0、输出钉全在 x=w（w 为 22 的倍数），
+  钉间距一格 22px，符号与钉之间画引线，名牌条高 `PT`=22；输入输出端子是 110×44 的紧凑芯片，
+  布局由 `ioLayout()` 统一给出（布线台与参考解共用）。钉坐标与包络盒一律由几何算出，
+  **禁止在走线/命中计算里读 DOM 尺寸**（`getBoundingClientRect`/`offsetWidth`），那是拖拽卡顿的来源。
+- **性能**：拖拽类手势只调 `requestDraw()` 合帧重绘，且只在跨格时请求；平移、缩放只改舞台 transform，
+  不重算走线；拖线预览只重画预览层 `drawPreview()`；导线不许用 CSS `filter`，发光靠底层 halo 宽描边。
+- **键鼠操作**（详见 `editor.js` 顶部注释）：从钉拖到对端钉连线（正反向皆可，28px 内吸附，
+  落在元件本体接最近空闲钉，落到已占用输入钉替换旧线）；拖已连线的输入钉可拎线改接，拖到空白即断开；
+  元件箱可点击放置或直接拖到画布；`F` 适应画布；
   按住导线本体拖拽改走向；双击导线添加可拖动的导线节点；右键点导线/元件删除；空白拖拽框选；空格/中键/右键拖拽平移；
   滚轮缩放；`Delete` 删除选中；`Esc` 取消；`Ctrl+Z/Y` 撤销/重做；`Ctrl+C/V` 复制粘贴。
 - 时序语义统一为「置输入，滴答，检查输出」，改动时序关时保证用例符合该语义。
