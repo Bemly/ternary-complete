@@ -568,6 +568,37 @@ $('btn-converter').onclick = () => {
   b.hidden = !b.hidden;
   if (!b.hidden) expandDrawer();
 };
+// 输入白名单（Toy 规范：不提供自由输入文字）：只放行本输入框需要的字符。
+// 只过滤“新输入的那一段”，关卡自带的中文注释等原有内容不受影响；中文输入法上屏后同样过滤。
+function guardInput(el, allow, msgKey) {
+  let prev = el.value, warned = false;
+  const clean = () => {
+    const v = el.value;
+    if (v === prev) return;
+    let a = 0;
+    while (a < v.length && a < prev.length && v[a] === prev[a]) a++;
+    let b = 0;
+    while (b < v.length - a && b < prev.length - a && v[v.length - 1 - b] === prev[prev.length - 1 - b]) b++;
+    const ins = v.slice(a, v.length - b);
+    const ok = [...ins].filter(c => allow.test(c)).join('');
+    if (ok !== ins) {
+      el.value = v.slice(0, a) + ok + v.slice(v.length - b);
+      el.setSelectionRange(a + ok.length, a + ok.length);
+      if (!warned) { warned = true; toast(t(msgKey)); setTimeout(() => { warned = false; }, 4000); }
+      el.dispatchEvent(new Event('input'));
+    }
+    prev = el.value;
+  };
+  let composing = false;
+  el.addEventListener('compositionstart', () => { composing = true; prev = el.value; });
+  el.addEventListener('compositionend', () => { composing = false; setTimeout(clean, 0); });
+  el.addEventListener('beforeinput', () => { if (!composing) prev = el.value; });
+  el.addEventListener('input', () => { if (!composing) clean(); });
+}
+guardInput($('cpu-code'), /[A-Za-z0-9 \t\n,:#\[\]+\-−_.;]/, 'inputAsm');
+guardInput($('conv-dec'), /[0-9\-−]/, 'inputNum');
+guardInput($('conv-bal'), /[+\-−0]/, 'inputBal');
+
 $('conv-d2b').onclick = () => {
   const v = parseInt($('conv-dec').value, 10);
   $('conv-b-out').textContent = Number.isFinite(v) ? decToBal(v) + `  (${v})` : t('convNeedInt');
@@ -694,6 +725,7 @@ function envInsets() {
 const CAPSULE_H = 48, OVERLAY_MIN = 88;
 function onToyHost() { return /(^|\.)bilibili\.com$/.test(location.hostname) || /\/toy\//.test(location.pathname); }
 function inFrame() { try { return window.top !== window.self; } catch { return true; } }
+let landShown = false;
 function applyContainer() {
   const st = container;
   const root = document.documentElement.style;
@@ -711,7 +743,14 @@ function applyContainer() {
   root.setProperty('--sab', Math.max(sa.bottom || 0, env.bottom) + 'px');
   root.setProperty('--sal', Math.max(sa.left || 0, env.left) + 'px');
   const portraitPhone = st && st.deviceType === 'phone' && st.orientation === 'portrait';
-  $('landscape-tip').hidden = !(portraitPhone && !$('game-view').hidden && !S.landDismiss);
+  // 不做常驻引导：每次打开最多提示一次，8 秒后自动收起
+  const show = portraitPhone && !$('game-view').hidden && !S.landDismiss && !landShown;
+  if (show && $('landscape-tip').hidden) {
+    landShown = true;
+    setTimeout(() => { $('landscape-tip').hidden = true; }, 8000);
+  }
+  if (show) $('landscape-tip').hidden = false;
+  else if (!portraitPhone || $('game-view').hidden || S.landDismiss) $('landscape-tip').hidden = true;
 }
 $('btn-landscape').onclick = () => Bili.landscape();
 $('btn-land-x').onclick = () => { S.landDismiss = true; applyContainer(); };
