@@ -52,6 +52,12 @@ const Editor = {
     this.elStage = document.getElementById('stage');
     this.elBox = document.getElementById('select-box');
     this.initTouch();
+    // 手机转屏：画布形状大变，重新适应一次
+    try {
+      matchMedia('(orientation: portrait)').addEventListener('change', () => {
+        if (this.level && this.level.kind === 'circuit' && this.elWrap.clientWidth) setTimeout(() => this.fitView(), 60);
+      });
+    } catch {}
     document.getElementById('btn-clear').onclick = () => {
       if (!this.circuit) return;
       this.pushHistory();
@@ -169,7 +175,7 @@ const Editor = {
       e.preventDefault();
       const wr = this.elWrap.getBoundingClientRect();
       const cx = e.clientX - wr.left, cy = e.clientY - wr.top;
-      const z2 = Math.min(2.5, Math.max(0.35, this.zoom * Math.exp(-e.deltaY * 0.0012)));
+      const z2 = Math.min(2.5, Math.max(0.2, this.zoom * Math.exp(-e.deltaY * 0.0012)));
       this.pan.x = cx - (cx - this.pan.x) * (z2 / this.zoom);
       this.pan.y = cy - (cy - this.pan.y) * (z2 / this.zoom);
       this.zoom = z2;
@@ -231,7 +237,7 @@ const Editor = {
       pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
       if (pts.size !== 2 || !base) return;
       const sp = span(), wr = base.wr;
-      const z = Math.min(2.5, Math.max(0.35, base.zoom * sp.d / Math.max(base.d, 1)));
+      const z = Math.min(2.5, Math.max(0.2, base.zoom * sp.d / Math.max(base.d, 1)));
       // 以双指中点为锚：中点下的世界坐标保持不动，同时跟随中点平移
       const wx = (base.cx - wr.left - base.pan.x) / base.zoom, wy = (base.cy - wr.top - base.pan.y) / base.zoom;
       this.zoom = z;
@@ -255,7 +261,7 @@ const Editor = {
   },
   zoomBy(k, cx, cy) {
     if (cx === undefined) { cx = this.elWrap.clientWidth / 2; cy = this.elWrap.clientHeight / 2; }
-    const z2 = Math.min(2.5, Math.max(0.35, this.zoom * k));
+    const z2 = Math.min(2.5, Math.max(0.2, this.zoom * k));
     this.pan.x = cx - (cx - this.pan.x) * (z2 / this.zoom);
     this.pan.y = cy - (cy - this.pan.y) * (z2 / this.zoom);
     this.zoom = z2;
@@ -273,7 +279,7 @@ const Editor = {
     for (const pts of this.planAllRoutes().values()) for (const p of pts) { l = Math.min(l, p.x - 8); r = Math.max(r, p.x + 8); t = Math.min(t, p.y - 8); b = Math.max(b, p.y + 8); }
     const W = this.elWrap.clientWidth, H = this.elWrap.clientHeight;
     const padX = 60, padTop = 56, padBot = 44;
-    const z = Math.min(1.4, Math.max(0.35, Math.min((W - padX * 2) / (r - l), (H - padTop - padBot) / (b - t))));
+    const z = Math.min(1.4, Math.max(0.2, Math.min((W - padX * 2) / (r - l), (H - padTop - padBot) / (b - t))));
     this.zoom = z;
     this.pan.x = (W - (r - l) * z) / 2 - l * z;
     this.pan.y = padTop + (H - padTop - padBot - (b - t) * z) / 2 - t * z;
@@ -497,6 +503,7 @@ const Editor = {
     const up = (ev) => {
       window.removeEventListener('pointermove', move);
       window.removeEventListener('pointerup', up);
+      window.removeEventListener('pointercancel', cancel);
       if (ghost) ghost.remove();
       const wr = this.elWrap.getBoundingClientRect();
       let p;
@@ -511,8 +518,11 @@ const Editor = {
       const n = this.addNode(type, p.x, p.y);
       this.selected = [n.nid]; this.selectedWire = null; this.refresh();
     };
+    // 触屏上纵向滑动交给元件栏滚动：浏览器接管后会发 pointercancel，收掉拖影即可
+    const cancel = () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); window.removeEventListener('pointercancel', cancel); if (ghost) ghost.remove(); };
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', up);
+    window.addEventListener('pointercancel', cancel);
   },
   // 从 (x,y) 起按网格同心扩散，找第一个与现有元件包络不相交的位置
   freeSpot(x, y, g) {

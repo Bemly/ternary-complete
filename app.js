@@ -88,15 +88,23 @@ function renderTree() {
   const order = LEVELS.map(l => l.id);
   // 布线台式路线图：章节自下而上排布，关卡蛇形走线，导线直角连接
   // 节点本体是元件符号（非矩形卡片），名牌在符号下方
-  const MW = 1200, TOP = 100, ROW_H = 178, NW = 150, NH = 118, PER = 5;
-  const COLX = c => 300 + c * 200;          // 5 列固定栅格；每行都从左往右，换行导线走行间通道
-  const rowsSpec = [];                      // 自下而上：{ ci, lvs, first }
+  // 宽屏：5 列，章节名牌在左侧；窄屏（手机）：3 列，章节名牌放在该章最上面一行的上方
+  const avail = tree.clientWidth || (document.documentElement.clientWidth - 20);
+  const narrow = avail < 760;
+  const MW = narrow ? 560 : 1200, TOP = 100, ROW_H = 178, NW = 150, NH = 118, PER = narrow ? 3 : 5;
+  const PLATE_GAP = narrow ? 40 : 0;        // 窄屏章节名牌占用的额外行距
+  const COLX = c => narrow ? 110 + c * 170 : 300 + c * 200;   // 固定栅格；每行都从左往右，换行导线走行间通道
+  const rowsSpec = [];                      // 自下而上：{ ci, lvs, first, last }
   CHAPTERS.forEach((ch, ci) => {
     const lvs = LEVELS.filter(l => l.ch === ch);
-    for (let k = 0; k < lvs.length; k += PER) rowsSpec.push({ ci, lvs: lvs.slice(k, k + PER), first: k === 0 });
+    for (let k = 0; k < lvs.length; k += PER) rowsSpec.push({ ci, lvs: lvs.slice(k, k + PER), first: k === 0, last: k + PER >= lvs.length });
   });
   const nRows = rowsSpec.length;
-  const H = TOP * 2 + (nRows - 1) * ROW_H;
+  // 每行中心 y：自下而上累加，窄屏在每章最上一行上方留出名牌位置
+  const rowY = [];
+  let acc = 0;
+  rowsSpec.forEach((row, r) => { if (r) acc += ROW_H + (rowsSpec[r - 1].last ? PLATE_GAP : 0); rowY.push(acc); });
+  const H = TOP * 2 + acc + PLATE_GAP;
   const canvas = document.createElement('div');
   canvas.id = 'map-canvas';
   canvas.style.width = MW + 'px';
@@ -108,14 +116,22 @@ function renderTree() {
   canvas.appendChild(svg);
   const pos = {};
   rowsSpec.forEach((row, r) => {
-    const cy = H - TOP - r * ROW_H;
-    if (row.first) {
-      const cn = chName(row.ci).replace(/^[0-9]\s*·\s*/, '');
+    const cy = H - TOP - rowY[r];
+    const cn = chName(row.ci).replace(/^[0-9]\s*·\s*/, '');
+    if (!narrow && row.first) {
       const plate = document.createElement('div');
       plate.className = 'mplate';
       plate.style.left = '12px';
       plate.style.top = (cy - 48) + 'px';
       plate.innerHTML = `<b>CHAPTER ${row.ci} · ${cn}</b><small>${t('chDesc')[row.ci] || ''}</small>`;
+      canvas.appendChild(plate);
+    }
+    if (narrow && row.last) {
+      const plate = document.createElement('div');
+      plate.className = 'mplate wide';
+      plate.style.left = '24px';
+      plate.style.top = (cy - NH / 2 - 34) + 'px';
+      plate.innerHTML = `<b>CHAPTER ${row.ci} · ${cn}</b>`;
       canvas.appendChild(plate);
     }
     row.lvs.forEach((lv, i) => {
@@ -149,13 +165,20 @@ function renderTree() {
   // 钉的屏幕位置 = 符号 svg 的实测位置 + 钉坐标 × 缩放；必须先把 canvas 挂进文档再量。
   // 同行：出钉右侧拐一次直角接入钉；换行：出钉 → 右侧短引 → 行间通道 → 下一行首个元件左侧 → 入钉。
   tree.appendChild(canvas);
+  const scale = Math.min(1, (tree.clientWidth || MW) / MW);
+  if (scale < 1) {
+    canvas.style.transform = `scale(${scale})`;
+    canvas.style.transformOrigin = '0 0';
+    canvas.style.marginBottom = `${-(H * (1 - scale))}px`;
+  }
   const cr = canvas.getBoundingClientRect();
   const pinOf = (id, which) => {
     const svgEl = canvas.querySelector(`[data-lv="${id}"] .mshape svg`);
     const r = svgEl.getBoundingClientRect();
     const sh = mapShape(id), k = r.width / sh.w;
     const p = sh.pin[which];
-    return { x: Math.round(r.left - cr.left + p.x * k), y: Math.round(r.top - cr.top + p.y * k) };
+    // 量出来的是缩放后的屏幕坐标，换回画布自身坐标
+    return { x: Math.round((r.left - cr.left + p.x * k) / scale), y: Math.round((r.top - cr.top + p.y * k) / scale) };
   };
   for (let i = 0; i < order.length - 1; i++) {
     const A = pos[order[i]], B = pos[order[i + 1]];
@@ -199,6 +222,7 @@ function showMap() {
   // 先显形再渲染：路线图导线端点需实测符号墨盒，藏着量全是 0
   $('map-view').hidden = false;
   $('game-view').hidden = true;
+  document.body.classList.remove('in-game');
   renderTree();
   // 路线图很长：滚到当前关卡附近
   const cur = document.querySelector('.mcell.cur') || document.querySelector('.mcell:not(:disabled):not(.done)');
@@ -209,6 +233,7 @@ function showMap() {
 function showGame() {
   $('map-view').hidden = true;
   $('game-view').hidden = false;
+  document.body.classList.add('in-game');
 }
 
 function ioLegend(lv) {
@@ -567,6 +592,12 @@ $('btn-lang').onclick = () => setLang(LANG === 'zh' ? 'en' : 'zh');
 
 window.addEventListener('beforeunload', saveCurrent);
 document.addEventListener('visibilitychange', () => { if (document.hidden) cloudSync(); });
+// 窗口尺寸变了（转屏、拉窗口）路线图要按新宽度重排
+let resizeTimer = 0;
+window.addEventListener('resize', () => {
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(() => { if (!$('map-view').hidden) renderTree(); }, 150);
+});
 
 // ---------- B站 Toy 平台 ----------
 let rankCache = {};

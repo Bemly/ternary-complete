@@ -49,7 +49,7 @@ html,body{margin:0;padding:0;background:var(--bg);color:var(--txt);font-family:'
 .legend{display:flex;gap:14px;color:var(--dim);font-size:12px;white-space:nowrap}
 .dot{width:10px;height:10px;border-radius:50%;display:inline-block;margin-right:5px;vertical-align:baseline}
 .dot.done{background:var(--good);box-shadow:0 0 8px var(--good)} .dot.cur{background:var(--pos);box-shadow:0 0 8px var(--pos)} .dot.lock{background:#4a5265}
-#level-tree{max-width:1200px;margin:0 auto}
+#level-tree{max-width:1200px;margin:0 auto;overflow:hidden}
 #map-canvas{position:relative;margin:0 auto;
   background-image:radial-gradient(circle,#2c3547 1.1px,transparent 1.2px);
   background-size:22px 22px;
@@ -66,6 +66,8 @@ html,body{margin:0;padding:0;background:var(--bg);color:var(--txt);font-family:'
 .mjunc.dim{fill:#20262f;stroke:#4a5468}
 .mplate{position:absolute;width:168px;pointer-events:none}
 .mplate b{display:block;font-family:var(--mono);font-size:12px;letter-spacing:1px;color:var(--amber)}
+.mplate.wide{width:auto;white-space:nowrap}
+.mplate.wide b{font-size:15px}
 .mplate small{display:block;font-size:11px;color:var(--dim);line-height:1.55;margin-top:3px}
 .mcell{position:absolute;background:none;border:0;box-shadow:none;padding:0;cursor:pointer;color:var(--txt)}
 .mcell:disabled{cursor:not-allowed}
@@ -350,13 +352,72 @@ body{padding:var(--sat) var(--sar) var(--sab) var(--sal);box-sizing:border-box}
 #landscape-tip[hidden]{display:none}
 /* 触屏：画布自己处理手势，不让浏览器滚动 / 缩放页面 */
 #board-wrap{touch-action:none}
-/* 手机横屏等矮屏：压缩顶栏、隐藏时间轴，给画布让出高度 */
-@media (max-height:520px){
-  #topbar{height:40px} .stat span{display:none} .brand-mini .en{display:none}
-  #map-view,#game-view{height:calc(100vh - 40px - var(--sat) - var(--sab))}
-  #game-toolbar{padding:4px 8px;gap:6px} .lv-info{display:none}
-  .act-btn.compact > span{display:none} .act-btn{padding:6px 8px} .run-btn{padding:6px 12px}
+/* 手机：大空间留给中间的布线图（竖屏或矮屏都算手机） */
+@media (max-width:760px), (max-height:520px){
+  /* 布线台隐藏顶栏，工具条即顶栏 */
+  body.in-game #topbar{display:none}
+  body.in-game #game-view{height:calc(100vh - var(--sat) - var(--sab))}
+  #map-view{height:calc(100vh - 40px - var(--sat) - var(--sab))}
+  #topbar{height:40px;gap:6px;padding:0 6px}
+  #crumb,.brand-mini,.stat:nth-child(n+2),#btn-converter span,#btn-rank span,#btn-map span{display:none}
+  .tb-right{gap:5px;margin-left:auto} .tb-right button{white-space:nowrap}
+  .stat span{display:none}
+  .tb-btn,.ghost-btn{padding:6px 8px}
+  #btn-profile{max-width:96px}
+  /* 工具条：只留图标，单行 */
+  #game-toolbar{padding:4px 6px;gap:5px;min-height:0}
+  .lv-info,#level-desc{display:none}
+  #btn-back span{display:none}
+  .lv-actions{gap:4px;flex:1;justify-content:flex-end;min-width:0}
+  .act-btn.compact > span{display:none}
+  .act-btn{padding:6px 8px} .run-btn{padding:6px 12px}
+  #tps-sel,#tick-count{padding:5px 4px}
   #timeline-strip{display:none !important}
-  #palette-rail{width:150px} .pal-grid{grid-template-columns:1fr} .pal-prev{height:28px}
-  #board-hint{display:none}
+  /* 画布上的浮层收小 */
+  #board-hint,.tri-legend{display:none}
+  #io-panel{top:6px;left:6px;gap:4px;max-width:calc(100% - 12px)}
+  .io-group{padding:2px 4px} .io-chip{font-size:10.5px;padding:1px 5px}
+  #zoom-ctl{right:6px;bottom:6px}
+  #zoom-ctl button{min-width:26px;height:26px;padding:0 6px}
+  #zoom-lbl{min-width:38px}
+  /* 元件栏：标题和状态行去掉，只留元件 */
+  .rail-title,.rail-foot{display:none}
+  .pal-btn{touch-action:pan-y}
+  /* 底部测试条压薄 */
+  .drawer-bar{padding:3px 8px;gap:8px;font-size:11px}
+  #io-sub,#io-legend{display:none}
+  #drawer-body{max-height:42vh}
+  .drawer-cols{grid-template-columns:1fr;padding:6px}
+  /* 汇编关 */
+  .cpu-cols{grid-template-columns:1fr} #cpu-panel{padding:8px}
+  .code-wrap{height:46vh}
+  /* 路线图 */
+  #map-view{padding:12px 10px 40px}
+  .map-head{flex-direction:column;align-items:flex-start;gap:6px;margin-bottom:10px}
+  .map-head h2{font-size:18px} .map-head h2 .sub,.map-head p{display:none}
+  .legend{flex-wrap:wrap;gap:8px;white-space:normal}
+  .win-card{padding:14px}
+}
+/* 手机横屏：元件栏是左侧窄图标列 */
+@media (max-height:520px) and (min-width:521px){
+  #palette-rail{width:74px}
+  #palette{padding:4px 5px 8px;gap:3px}
+  .pal-group{font-size:8.5px;letter-spacing:.5px;padding:4px 0 1px;white-space:nowrap;overflow:hidden}
+  .pal-grid{grid-template-columns:1fr;gap:4px}
+  .pal-btn{padding:3px;gap:1px}
+  .pal-prev{height:26px}
+  .pal-name{font-size:9.5px;justify-content:center} .pal-name small{display:none}
+}
+/* 手机竖屏：元件栏放到底部，横向滑动 */
+@media (max-width:520px){
+  #game-main{flex-direction:column}
+  #palette-rail{order:2;width:auto;height:68px;border-right:0;border-top:1px solid #262c38}
+  #board-wrap{order:1;flex:1;min-height:0}
+  #palette{flex-direction:row;align-items:stretch;overflow-x:auto;overflow-y:hidden;padding:5px 6px;gap:5px}
+  .pal-group{display:none}
+  .pal-grid,.pal-grid.consts{display:flex;gap:5px}
+  .pal-btn{width:62px;flex:none;padding:3px;gap:1px;touch-action:pan-x}
+  .pal-prev{height:30px}
+  .pal-name{font-size:10px;justify-content:center} .pal-name small{display:none}
+  .pal-empty{padding:4px}
 }
