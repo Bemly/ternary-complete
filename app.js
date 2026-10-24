@@ -9,7 +9,10 @@ const store = {
 const freshState = () => ({ done: [], cur: 't0_wire', circuits: {}, code: {}, best: {}, ts: {}, dev: false, profileOk: false });
 let S = Object.assign(freshState(), store.load());
 if (!LEVELS.some(l => l.id === S.cur)) S.cur = 't0_wire';
-if (location.search.includes('dev')) S.dev = true;
+// 开发者模式（全关解锁）只在本机调试时可用：线上（Toy / 任何非本机域名）一律关闭并隐藏入口
+const DEV_OK = location.protocol === 'file:' || /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname);
+if (!DEV_OK) S.dev = false;
+else if (new URLSearchParams(location.search).has('dev')) S.dev = true;
 
 let cpuSession = null;
 const $ = id => document.getElementById(id);
@@ -210,6 +213,7 @@ function renderTree() {
   $('stat-progress').textContent = `${doneCount()}/${LEVELS.length}`;
   const devBtn = $('btn-dev');
   if (devBtn) {
+    devBtn.hidden = !DEV_OK;
     devBtn.innerHTML = (S.dev ? ICONS.unlock : ICONS.lock) + `<span>${S.dev ? t('devOn') : t('devOff')}</span>`;
     devBtn.classList.toggle('on', !!S.dev);
   }
@@ -585,6 +589,7 @@ $('btn-reset').onclick = async () => {
   showMap(); toast(t('resetDone'));
 };
 $('btn-dev').onclick = () => {
+  if (!DEV_OK) return;
   S.dev = !S.dev; persist(); renderTree();
   toast(S.dev ? t('devToastOn') : t('devToastOff'));
 };

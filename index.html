@@ -47,7 +47,7 @@
       <div><i class="dot cur"></i><span data-i18n="legCur">当前位置</span></div>
       <div><i class="dot lock"></i><span data-i18n="legLock">未解锁</span></div>
       <button id="btn-relay" class="ghost-btn" hidden><svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="square" aria-hidden="true"><path d="M2 2 H6 V6 H2 Z M10 2 H14 V6 H10 Z M2 10 H6 V14 H2 Z M10 10 H11.5 M14 10 V14 H10 V12"/></svg> <span data-i18n="qrBtn">扫码到手机</span></button>
-      <button id="btn-dev" class="ghost-btn" title="开发者模式：解锁全部关卡"><svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="square" aria-hidden="true"><rect x="3.5" y="7" width="9" height="7"/><path d="M5.5 7 V5 A2.5 2.5 0 0 1 10.4 5.4 M10.4 5.4 V6.6"/></svg> 开发者模式：关</button>
+      <button id="btn-dev" class="ghost-btn" hidden title="开发者模式：解锁全部关卡"><svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="square" aria-hidden="true"><rect x="3.5" y="7" width="9" height="7"/><path d="M5.5 7 V5 A2.5 2.5 0 0 1 10.4 5.4 M10.4 5.4 V6.6"/></svg> 开发者模式：关</button>
     </div>
   </div>
   <div id="level-tree"></div>
@@ -245,7 +245,7 @@ HLT   标签写为  L:  注释用 #</pre>
       <li data-i18n="h4"><b>视图：</b>空格/中键/右键拖拽平移，滚轮缩放。Ctrl+Z/Y 撤销/重做，Ctrl+C/V 复制粘贴。</li>
       <li data-i18n="h5"><b>过关：</b>底部测试条列出全部用例，点右上「运行测试」全绿即过关，解锁新标准件。</li>
       <li data-i18n="h6"><b>时钟：</b>含触发器的关用「滴答」推进，序列测试每步自动滴答。自动档位 1/2/5/10 TPS，拍数记在工具条；每次滴答都会记进下方<b>时间轴</b>波形。</li>
-      <li data-i18n="h7"><b>调试：</b>左上输入输出总览条点输入可切换；右下「开发者模式」可直接全开 18 关。</li>
+      <li data-i18n="h7"><b>调试：</b>左上输入输出总览条点输入可切换。</li>
       <li data-i18n="h9"><b>触屏：</b>单指拖空白处平移，双指捏合缩放；点一下导线或元件选中，再点工具条的删除。</li>
       <li data-i18n="h8"><b>布线规矩：</b>任何两根导线只允许交叉穿过，重叠或贴靠都不允许，没有例外；违规落线自动挤到旁边空位，实在没空位才回退上一步。</li>
     </ol>
