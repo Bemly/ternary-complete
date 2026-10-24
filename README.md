@@ -74,7 +74,7 @@ two leaderboards (levels cleared, lean score), share sheet in the app and QR rel
 
 The key lesson: one TNAND is **not** functionally complete in three-valued
 logic (its functions are all zero-preserving). Threshold gates NTI / PTI close
-the gap, the physical basis of the Soviet Setun machine, and the MUX built
+the gap, the physical basis of the historical Setun ternary computer, and the MUX built
 on top of them makes every truth table a lookup.
 
 ## Project layout

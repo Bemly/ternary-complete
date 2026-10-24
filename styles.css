@@ -7,10 +7,10 @@
   --txt:#e8eaf0; --dim:#9aa1b2; --faint:#6b7385;
   --neg:#4fc3f7; --zero:#9aa0b0; --pos:#ffa726;
   --vio:#8f7bff; --good:#3ddc84; --bad:#ff5d5d; --amber:#ffb74d;
-  --mono:'JetBrains Mono',ui-monospace,monospace;
+  --mono:'JetBrains Mono','SF Mono',Menlo,Consolas,ui-monospace,monospace;
 }
 *{box-sizing:border-box}
-html,body{margin:0;padding:0;background:var(--bg);color:var(--txt);font-family:'Noto Sans SC',sans-serif;height:100vh;overflow:hidden}
+html,body{margin:0;padding:0;background:var(--bg);color:var(--txt);font-family:'Noto Sans SC','PingFang SC','Hiragino Sans GB','Microsoft YaHei',sans-serif;height:100vh;overflow:hidden}
 #bg-grid{display:none}
 .mono{font-family:var(--mono)} .dim{color:var(--dim)}
 
@@ -43,7 +43,7 @@ html,body{margin:0;padding:0;background:var(--bg);color:var(--txt);font-family:'
 #map-view{overflow:auto;padding:26px 30px 60px;background:radial-gradient(ellipse at 50% -10%,#1c2230 0%,var(--bg) 60%)}
 #map-view[hidden]{display:none}
 .map-head{display:flex;justify-content:space-between;align-items:flex-end;gap:20px;max-width:1200px;margin:0 auto 18px}
-.map-head h2{margin:0;font-family:'Noto Serif SC',serif;font-size:24px}
+.map-head h2{margin:0;font-family:'Noto Serif SC','Songti SC','SimSun',serif;font-size:24px}
 .map-head h2 .sub{font-family:'Noto Sans SC';font-size:12px;color:var(--dim);font-weight:400;margin-left:8px}
 .map-head p{margin:6px 0 0;font-size:13px}
 .legend{display:flex;gap:14px;color:var(--dim);font-size:12px;white-space:nowrap}
@@ -265,7 +265,7 @@ html,body{margin:0;padding:0;background:var(--bg);color:var(--txt);font-family:'
 .win-card{background:linear-gradient(180deg,#242b38,#14171d);border:1px solid var(--amber);border-radius:14px;padding:22px;max-width:440px;width:92%}
 .win-card.wide{max-width:620px;max-height:84vh;overflow:auto}
 .win-kicker{font-family:var(--mono);color:var(--good);letter-spacing:2px;font-size:12px}
-.win-card h3{font-family:'Noto Serif SC',serif;margin:6px 0}
+.win-card h3{font-family:'Noto Serif SC','Songti SC','SimSun',serif;margin:6px 0}
 .win-card p,.win-card ol,.win-card div{color:var(--dim);font-size:13.5px;line-height:1.7}
 #info-theory{color:var(--dim);font-size:13.5px;line-height:1.75}
 #info-theory code{font-family:var(--mono);background:#000;padding:1px 5px;border-radius:4px;color:var(--amber)}
