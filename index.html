@@ -62,20 +62,20 @@
     </div>
     <p id="level-desc"></p>
     <div class="lv-actions">
-      <button id="btn-tick" class="act-btn" title="时钟滴答：推进所有触发器"><svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="square" aria-hidden="true"><circle cx="8" cy="9" r="5.2"/><path d="M8 5.8 V9 L10.5 10.2 M5.5 1 H10.5"/></svg> <span data-i18n="tickBtn">滴答</span></button>
-      <button id="btn-auto" class="act-btn" title="自动时钟"><svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="square" aria-hidden="true"><path d="M4 2 L13 8 L4 14 Z" fill="currentColor" stroke="none"/></svg> <span data-i18n="autoBtn">自动</span></button>
-      <select id="tps-sel" title="自动滴答速度（拍/秒）">
+      <button id="btn-tick" class="act-btn clk" title="时钟滴答：推进所有触发器"><svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="square" aria-hidden="true"><circle cx="8" cy="9" r="5.2"/><path d="M8 5.8 V9 L10.5 10.2 M5.5 1 H10.5"/></svg> <span data-i18n="tickBtn">滴答</span></button>
+      <button id="btn-auto" class="act-btn clk" title="自动时钟"><svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="square" aria-hidden="true"><path d="M4 2 L13 8 L4 14 Z" fill="currentColor" stroke="none"/></svg> <span data-i18n="autoBtn">自动</span></button>
+      <select id="tps-sel" class="clk" title="自动滴答速度（拍/秒）">
         <option value="1">1 TPS</option>
         <option value="2" selected>2 TPS</option>
         <option value="5">5 TPS</option>
         <option value="10">10 TPS</option>
       </select>
-      <span id="tick-count" title="时钟已走拍数">T=0</span>
-      <button id="btn-timeline" class="act-btn on" title="显示/隐藏信号时间轴"><svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="square" aria-hidden="true"><path d="M2 2 V14 H14"/><path d="M4.5 11 H7 V6.5 H9.5 V9.5 H12"/></svg> <span data-i18n="tlBtn">时间轴</span></button>
-      <button id="btn-clear" class="act-btn"><span data-i18n="clearWires">清空连线</span></button>
-      <button id="btn-del" class="act-btn danger"><span data-i18n="delSel">删除选中</span></button>
-      <button id="btn-info" class="act-btn accent"><svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="square" aria-hidden="true"><rect x="4" y="1.5" width="8" height="13"/><path d="M7 1.5 V14.5"/></svg> <span data-i18n="infoBtn">说明与提示</span></button>
-      <button id="btn-ref" class="act-btn" title="载入本关参考解"><span data-i18n="refBtn">参考解</span></button>
+      <span id="tick-count" class="clk" title="时钟已走拍数">T=0</span>
+      <button id="btn-timeline" class="act-btn on clk compact" title="显示/隐藏信号时间轴"><svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="square" aria-hidden="true"><path d="M2 2 V14 H14"/><path d="M4.5 11 H7 V6.5 H9.5 V9.5 H12"/></svg> <span data-i18n="tlBtn">时间轴</span></button>
+      <button id="btn-clear" class="act-btn circ-only compact" data-i18n-title="clearWires" title="清空连线"><svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="square" aria-hidden="true"><path d="M2 5 H6 M10 5 H14 M2 11 H14 M7 2 L9 8"/></svg> <span data-i18n="clearWires">清空连线</span></button>
+      <button id="btn-del" class="act-btn danger circ-only compact" data-i18n-title="delSel" title="删除选中"><svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="square" aria-hidden="true"><path d="M2.5 4 H13.5 M6 4 V2 H10 V4 M4 4 L5 14 H11 L12 4"/></svg> <span data-i18n="delSel">删除选中</span></button>
+      <button id="btn-info" class="act-btn accent compact" data-i18n-title="infoBtn"><svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="square" aria-hidden="true"><rect x="4" y="1.5" width="8" height="13"/><path d="M7 1.5 V14.5"/></svg> <span data-i18n="infoBtn">说明与提示</span></button>
+      <button id="btn-ref" class="act-btn compact" data-i18n-title="refBtn" title="载入本关参考解"><svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="square" aria-hidden="true"><circle cx="5" cy="8" r="3"/><path d="M8 8 H14.5 M12 8 V11 M14.5 8 V10.5"/></svg> <span data-i18n="refBtn">参考解</span></button>
       <button id="btn-run" class="run-btn"><svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="square" aria-hidden="true"><path d="M4 2 L13 8 L4 14 Z" fill="currentColor" stroke="none"/></svg> <span data-i18n="runTests">运行测试</span></button>
     </div>
   </div>
@@ -99,13 +99,14 @@
       <div id="io-panel" title="输入输出总览（点输入切换 −/0/+）"></div>
       <div id="board-hint" data-i18n="boardHint">输出钉按住<b>拖到</b>输入钉连线 · 按住导线<b>拖拽</b>改走向 · 双击加节点 · 右键删线/元件 · 空白拖拽框选 · 空格/中键/右键拖拽平移 · 滚轮缩放 · 点输入端切换 −/0/+</div>
       <div class="tri-legend"><i class="t neg">−</i><i class="t zero">0</i><i class="t pos">+</i></div>
+      <div id="zoom-ctl"><button data-z="out" data-i18n-title="zoomOut" title="缩小">−</button><span id="zoom-lbl">100%</span><button data-z="in" data-i18n-title="zoomIn" title="放大">+</button><button data-z="fit" data-i18n-title="zoomFit" title="适应画布（F）"><svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="square" aria-hidden="true"><path d="M1.5 5.5 V1.5 H5.5 M10.5 1.5 H14.5 V5.5 M14.5 10.5 V14.5 H10.5 M5.5 14.5 H1.5 V10.5"/></svg></button></div>
     </div>
 
     <div id="cpu-panel" hidden>
       <div class="cpu-cols">
         <div>
           <div class="panel-title"><span data-i18n="cpuAsm">TRIT-3 汇编器</span> <span class="sub" data-i18n="cpuSub">3-trit 字 · −13…+13</span></div>
-          <textarea id="cpu-code" spellcheck="false"></textarea>
+          <div class="code-wrap"><pre id="cpu-gutter" aria-hidden="true"></pre><textarea id="cpu-code" spellcheck="false" wrap="off"></textarea></div>
           <div class="cpu-btns">
             <button id="btn-cpu-run" class="run-btn"><span data-i18n="cpuRun">运行程序</span></button>
             <button id="btn-cpu-step" class="act-btn"><span data-i18n="cpuStep">单步</span></button>
@@ -128,7 +129,7 @@ HLT   标签写为  L:  注释用 #</pre>
   </div>
 
   <!-- 信号时间轴 -->
-  <div id="timeline-strip">
+  <div id="timeline-strip" class="clk">
     <div class="tl-head">
       <span><svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="square" aria-hidden="true"><path d="M2 2 V14 H14"/><path d="M4.5 11 H7 V6.5 H9.5 V9.5 H12"/></svg> <span data-i18n="tlTitle">时间轴</span> <span id="tl-info" class="dim"></span></span>
       <button id="btn-tl-clear" class="ghost-btn"><span data-i18n="tlClear">清空波形</span></button>
@@ -178,6 +179,7 @@ HLT   标签写为  L:  注释用 #</pre>
     <div class="win-kicker" data-i18n="winKicker">✓ 验证通过</div>
     <h3 id="win-title">关卡完成</h3>
     <p id="win-text"></p>
+    <div id="win-extra"></div>
     <div class="win-btns">
       <button id="btn-map2" class="act-btn"><span data-i18n="winMap">路线图</span></button>
       <button id="btn-next" class="run-btn"><span data-i18n="winNext">下一关 →</span></button>

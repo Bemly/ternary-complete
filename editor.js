@@ -1,19 +1,33 @@
 /* 电路编辑器 + 仿真器
  *
  * 键鼠操作约定：
- * - 按住输出钉 → 拖到输入钉松手：连线（点两下也行）；Esc 取消
+ * - 按住输出钉 → 拖到输入钉松手：连线（点两下也行）；靠近钉 28px 内自动吸附；Esc 取消
+ * - 也可从输入钉反向拖到输出钉；按住已连线的输入钉拖走：拎起这根线改接，拖到空白松手即断开
+ * - 落到已占用的输入钉：替换旧线；落到元件本体：接到最近的空闲钉
  * - 按住导线本体拖拽：抓取点即时弯折改走向；双击加节点；右键点节点删该节点
- * - 右键点导线/元件：删除；单击导线：选中（Delete 删除）
+ * - 右键点导线/元件：删除；单击导线：选中（Delete 删除）；悬停导线：整网高亮
  * - 空白处拖拽：框选（Shift 加选）；单击空白：取消选择；拖动元件：多选一起搬（22px 网格吸附）
- * - 空格/中键/右键拖拽：平移画布；滚轮：以光标为中心缩放
+ * - 元件箱：点击放到视野中央空位，或直接拖到画布上指定位置
+ * - 空格/中键/右键拖拽：平移画布；滚轮：以光标为中心缩放；F：适应画布
  * - Delete：删除选中；Ctrl+Z / Ctrl+Y（Shift+Z）：撤销/重做；Ctrl+C/V：复制粘贴；Ctrl+A：全选
  * - 重叠处理：手势收尾新增重叠先挤旁边空位，无位可挤才 undo 回上一步并清空 redo
+ *
+ * 性能约定：钉坐标与包络盒全部由几何（geomOf）算出，不读 DOM；
+ * 拖拽类手势只请求下一帧重绘（requestDraw），平移缩放只改舞台变换，不重算走线。
  */
 'use strict';
 
 const WORLD = 4000;
 const GRID = 22; // 点阵间距：元件、导线节点、走线弯折全部严格吸附
+const PT = 22;   // 门符号名牌条高度，钉坐标整体下移一格，保证钉落在 11px 半格上
 const snapG = v => Math.round(v / GRID) * GRID;
+const IO_W = 110, IO_H = 44;
+// 关卡输入输出端子布局（布线台与参考解共用，钉位落在网格上）
+function ioLayout(level, outX) {
+  const ins = level.inputs.map((nm, i) => ({ nm, x: 44, y: 88 + i * 88 }));
+  const outs = level.outputs.map((nm, i) => ({ nm, x: outX || 792, y: 88 + i * 88 }));
+  return { ins, outs };
+}
 
 const Editor = {
   circuit: null, level: null,
@@ -27,8 +41,13 @@ const Editor = {
   elBoard: null, elWires: null, elWrap: null, elStage: null, elBox: null,
 
   init() {
+    this._geo = {};
     this.elBoard = document.getElementById('board');
     this.elWires = document.getElementById('wires');
+    // 导线层与连线预览层分开：拖线预览只重画预览层
+    this.elWires.innerHTML = '<g class="wl"></g><g class="pl"></g>';
+    this.elWL = this.elWires.querySelector('.wl');
+    this.elPL = this.elWires.querySelector('.pl');
     this.elWrap = document.getElementById('board-wrap');
     this.elStage = document.getElementById('stage');
     this.elBox = document.getElementById('select-box');
@@ -131,6 +150,12 @@ const Editor = {
       this.pending = null; this.clearSelection(); this.refresh();
     });
 
+    this.elWrap.addEventListener('pointermove', (e) => {
+      if (!this.pending || this.wiring) return;
+      this.mouse = this.toWorld(e.clientX, e.clientY);
+      this.snapTarget = this.findSnap(e);
+      if (!this._pvRaf) this._pvRaf = requestAnimationFrame(() => { this._pvRaf = 0; this.drawPreview(); });
+    });
     // 背景：框选 / 平移（svg 空白处也要能框选，只排除节点/钉子/已有导线）
     this.elWrap.addEventListener('pointerdown', (e) => {
       if (e.target.closest('.node') || e.target.closest('.pin')) return;
@@ -147,8 +172,28 @@ const Editor = {
       this.pan.x = cx - (cx - this.pan.x) * (z2 / this.zoom);
       this.pan.y = cy - (cy - this.pan.y) * (z2 / this.zoom);
       this.zoom = z2;
-      this.applyView(); this.drawWires();
+      this.applyView();
     }, { passive: false });
+    // 悬停导线：整网高亮（同一输出钉出发的全部导线）
+    this.elWires.addEventListener('pointerover', (e) => {
+      const g = e.target.closest && e.target.closest('[data-net]');
+      const net = g ? g.dataset.net : null;
+      if (net === this._hotNet) return;
+      this._hotNet = net;
+      this.elWL.querySelectorAll('.net-hot').forEach(x => x.classList.remove('net-hot'));
+      if (net) this.elWL.querySelectorAll(`[data-net="${net}"]`).forEach(x => x.classList.add('net-hot'));
+    });
+    this.elWires.addEventListener('pointerleave', () => {
+      this._hotNet = null;
+      this.elWL.querySelectorAll('.net-hot').forEach(x => x.classList.remove('net-hot'));
+    });
+    const zc = document.getElementById('zoom-ctl');
+    if (zc) zc.addEventListener('click', (e) => {
+      const b = e.target.closest('[data-z]');
+      if (!b) return;
+      if (b.dataset.z === 'fit') this.fitView();
+      else this.zoomBy(b.dataset.z === 'in' ? 1.2 : 1 / 1.2);
+    });
 
     document.addEventListener('keydown', (e) => {
       const tag = (document.activeElement?.tagName || '').toLowerCase();
@@ -161,26 +206,47 @@ const Editor = {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'c') { e.preventDefault(); this.copySel(); }
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'v') { e.preventDefault(); this.pasteSel(); }
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'a') { e.preventDefault(); this.selectAll(); }
+      if (!e.ctrlKey && !e.metaKey && !e.altKey && e.key.toLowerCase() === 'f' && this.level && this.level.kind === 'circuit') this.fitView();
     });
     document.addEventListener('keyup', (e) => { if (e.key === ' ') this.spaceDown = false; });
-    // 拖拽连线松手落在输入钉上时完成（与 click-click 共存）
-    window.addEventListener('pointerup', (e) => {
-      if (!this.wiring) return;
-      this.wiring = false;
-      const el = document.elementFromPoint(e.clientX, e.clientY);
-      const pin = el && el.closest ? el.closest('.pin.in') : null;
-      if (pin) {
-        this.suppressClick = true;
-        setTimeout(() => this.suppressClick = false, 0);
-        this.completeWire(Number(pin.dataset.nid), pin.dataset.pin);
-      }
-    });
-    window.addEventListener('resize', () => this.drawWires());
   },
 
   // 视图变换
   applyView() {
     if (this.elStage) this.elStage.style.transform = `translate(${this.pan.x}px,${this.pan.y}px) scale(${this.zoom})`;
+    const zl = document.getElementById('zoom-lbl');
+    if (zl) zl.textContent = Math.round(this.zoom * 100) + '%';
+  },
+  zoomBy(k, cx, cy) {
+    if (cx === undefined) { cx = this.elWrap.clientWidth / 2; cy = this.elWrap.clientHeight / 2; }
+    const z2 = Math.min(2.5, Math.max(0.35, this.zoom * k));
+    this.pan.x = cx - (cx - this.pan.x) * (z2 / this.zoom);
+    this.pan.y = cy - (cy - this.pan.y) * (z2 / this.zoom);
+    this.zoom = z2;
+    this.applyView();
+  },
+  // 适应画布：把全部元件框进视野（留边距，最大 1.4 倍）
+  fitView() {
+    if (!this.circuit || !this.circuit.nodes.length) return;
+    let l = Infinity, t = Infinity, r = -Infinity, b = -Infinity;
+    for (const n of this.circuit.nodes) {
+      const g = this.geomOf(n);
+      l = Math.min(l, n.x); t = Math.min(t, n.y - 4);
+      r = Math.max(r, n.x + g.w); b = Math.max(b, n.y + g.h);
+    }
+    for (const pts of this.planAllRoutes().values()) for (const p of pts) { l = Math.min(l, p.x - 8); r = Math.max(r, p.x + 8); t = Math.min(t, p.y - 8); b = Math.max(b, p.y + 8); }
+    const W = this.elWrap.clientWidth, H = this.elWrap.clientHeight;
+    const padX = 60, padTop = 56, padBot = 44;
+    const z = Math.min(1.4, Math.max(0.35, Math.min((W - padX * 2) / (r - l), (H - padTop - padBot) / (b - t))));
+    this.zoom = z;
+    this.pan.x = (W - (r - l) * z) / 2 - l * z;
+    this.pan.y = padTop + (H - padTop - padBot - (b - t) * z) / 2 - t * z;
+    this.applyView();
+  },
+  // 合并同一帧内的多次重绘请求（拖拽类手势用）
+  requestDraw() {
+    if (this._raf) return;
+    this._raf = requestAnimationFrame(() => { this._raf = 0; this.drawWires(); });
   },
   toWorld(cx, cy) {
     const wr = this.elWrap.getBoundingClientRect();
@@ -293,15 +359,9 @@ const Editor = {
     this.tickCount = 0; this.tlFrames = [];
     this.elBoard.innerHTML = '';
     if (level.kind === 'circuit') {
-      const n = level.inputs.length, m = level.outputs.length;
-      level.inputs.forEach((nm, i) => {
-        const y = 80 + i * Math.max(72, Math.min(110, 400 / Math.max(1, n)));
-        this.addNode('INPUT', 40, y, { ioName: nm, val: 0 }, true, true);
-      });
-      level.outputs.forEach((nm, i) => {
-        const y = 80 + i * Math.max(72, Math.min(110, 400 / Math.max(1, m)));
-        this.addNode('OUTPUT', 720, y, { ioName: nm }, true, true);
-      });
+      const io = ioLayout(level);
+      io.ins.forEach(p => this.addNode('INPUT', p.x, p.y, { ioName: p.nm, val: 0 }, true, true));
+      io.outs.forEach(p => this.addNode('OUTPUT', p.x, p.y, { ioName: p.nm }, true, true));
     }
     this.buildPalette(level);
     this.applyView();
@@ -330,33 +390,108 @@ const Editor = {
   buildPalette(level) {
     const pal = document.getElementById('palette');
     pal.innerHTML = '';
-    (level.palette || []).forEach(k => {
-      const d = COMP_DEFS[k]; if (!d) return;
-      const b = document.createElement('button');
-      b.className = 'pal-btn';
-      // 元件箱显示该元件的真实形状微缩图，不再是干文字方块
-      let prev = '';
-      try {
-        const s = this.shapeOf(k);
-        const dots = s.inA.map(p => `<circle cx="${p.x}" cy="${p.y}" r="3.2" fill="#8b94a7"/>`).join('') +
-          s.outA.map(p => `<circle cx="${p.x}" cy="${p.y}" r="3.2" fill="#ffb74d"/>`).join('');
-        prev = `<span class="pal-prev"><svg viewBox="0 0 ${s.w} ${s.h}" width="48" height="32" preserveAspectRatio="xMidYMid meet">${s.svg}${dots}</svg></span>`;
-      } catch { prev = ''; }
-      b.innerHTML = `${prev}<span class="pal-name">${compName(k)}</span><small>${d.en}</small>`;
-      b.title = compDesc(k);
-      b.onclick = () => {
-        const w = this.toWorld(
-          this.elWrap.getBoundingClientRect().left + this.elWrap.clientWidth / 2,
-          this.elWrap.getBoundingClientRect().top + this.elWrap.clientHeight / 2 - 40
-        );
-        const n = this.addNode(k, snapG(w.x - 60 + Math.random() * 80), snapG(w.y + Math.random() * 80));
-        this.selected = [n.nid]; this.selectedWire = null; this.refresh();
-      };
-      pal.appendChild(b);
-    });
-    if (!(level.palette || []).length && level.kind === 'circuit') {
-      pal.innerHTML = `<span style="font-size:12px;color:var(--dim)">${t('noGates')}</span>`;
+    const keys = (level.palette || []).filter(k => COMP_DEFS[k]);
+    // 按类别分组：门 / 阈值 / 选择 / 算术 / 时序 / 常量
+    const groups = [
+      ['pgGate', ['TNAND', 'TNOR', 'STI', 'TMIN', 'TMAX']],
+      ['pgThr', ['NTI', 'PTI', 'ISP', 'ISN', 'ISZ']],
+      ['pgSel', ['MUX', 'CMP', 'DEC']],
+      ['pgArith', ['HADD', 'FADD', 'ADD2', 'SUB2', 'ALU1']],
+      ['pgSeq', ['DFF', 'REG1']],
+      ['pgConst', ['C_M', 'C_Z', 'C_P']],
+    ];
+    const seen = new Set();
+    for (const [gk, members] of groups) {
+      const ks = keys.filter(k => members.includes(k));
+      if (!ks.length) continue;
+      const h = document.createElement('div');
+      h.className = 'pal-group';
+      h.textContent = t(gk);
+      pal.appendChild(h);
+      const box = document.createElement('div');
+      box.className = 'pal-grid' + (gk === 'pgConst' ? ' consts' : '');
+      for (const k of ks) { box.appendChild(this.palButton(k)); seen.add(k); }
+      pal.appendChild(box);
     }
+    const rest = keys.filter(k => !seen.has(k));
+    if (rest.length) { const box = document.createElement('div'); box.className = 'pal-grid'; rest.forEach(k => box.appendChild(this.palButton(k))); pal.appendChild(box); }
+    if (!keys.length && level.kind === 'circuit') {
+      pal.innerHTML = `<span class="pal-empty">${t('noGates')}</span>`;
+    }
+  },
+  palButton(k) {
+    const d = COMP_DEFS[k];
+    const b = document.createElement('button');
+    b.className = 'pal-btn';
+    // 元件箱显示该元件的真实形状微缩图，不再是干文字方块
+    let prev = '';
+    try {
+      const s = this.shapeOf(k);
+      const dots = s.inA.map(p => `<rect x="${p.x - 3}" y="${p.y - 3}" width="6" height="6" fill="#8b94a7"/>`).join('') +
+        s.outA.map(p => `<rect x="${p.x - 3}" y="${p.y - 3}" width="6" height="6" fill="#ffb74d"/>`).join('');
+      prev = `<span class="pal-prev"><svg viewBox="-4 -2 ${s.w + 8} ${s.h + 4}" width="52" height="34" preserveAspectRatio="xMidYMid meet">${s.svg}${dots}</svg></span>`;
+    } catch { prev = ''; }
+    b.innerHTML = `${prev}<span class="pal-name">${compName(k)}<small>${d.en}</small></span>`;
+    b.title = compName(k) + ' · ' + compDesc(k);
+    b.addEventListener('pointerdown', (e) => this.palDrag(k, e));
+    return b;
+  },
+  // 元件箱拖放：拖到画布松手即放在落点（网格吸附、自动避开已有元件）；原地松手 = 点击，放到视野中央空位
+  palDrag(type, e) {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    const sx = e.clientX, sy = e.clientY;
+    let ghost = null, moved = false;
+    const g = this.geomOf({ type });
+    const move = (ev) => {
+      if (!moved && Math.abs(ev.clientX - sx) + Math.abs(ev.clientY - sy) < 5) return;
+      if (!moved) {
+        moved = true;
+        const s = this.shapeOf(type);
+        ghost = document.createElement('div');
+        ghost.className = 'pal-ghost';
+        ghost.innerHTML = `<svg width="${s.w * this.zoom}" height="${s.h * this.zoom}" viewBox="0 0 ${s.w} ${s.h}">${s.svg}</svg>`;
+        document.body.appendChild(ghost);
+      }
+      ghost.style.left = (ev.clientX - g.w * this.zoom / 2) + 'px';
+      ghost.style.top = (ev.clientY - (g.h - PT) * this.zoom / 2) + 'px';
+      const wr = this.elWrap.getBoundingClientRect();
+      ghost.classList.toggle('off', !(ev.clientX > wr.left && ev.clientX < wr.right && ev.clientY > wr.top && ev.clientY < wr.bottom));
+    };
+    const up = (ev) => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      if (ghost) ghost.remove();
+      const wr = this.elWrap.getBoundingClientRect();
+      let p;
+      if (!moved) {
+        const c = this.toWorld(wr.left + wr.width / 2, wr.top + wr.height / 2);
+        p = this.freeSpot(snapG(c.x - g.w / 2), snapG(c.y - g.h / 2), g);
+      } else {
+        if (!(ev.clientX > wr.left && ev.clientX < wr.right && ev.clientY > wr.top && ev.clientY < wr.bottom)) return;
+        const c = this.toWorld(ev.clientX, ev.clientY);
+        p = this.freeSpot(snapG(c.x - g.w / 2), snapG(c.y - g.h / 2 - PT / 2), g);
+      }
+      const n = this.addNode(type, p.x, p.y);
+      this.selected = [n.nid]; this.selectedWire = null; this.refresh();
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+  },
+  // 从 (x,y) 起按网格同心扩散，找第一个与现有元件包络不相交的位置
+  freeSpot(x, y, g) {
+    const hit = (px, py) => this.circuit.nodes.some(n => {
+      const b = this.nodeBox(n.nid, 12);
+      return px < b.r && px + g.w > b.l && py < b.b && py + g.h > b.t;
+    });
+    if (!hit(x, y)) return { x, y };
+    for (let d = 1; d <= 12; d++) {
+      for (let i = -d; i <= d; i++) for (const [dx, dy] of [[i, -d], [i, d], [-d, i], [d, i]]) {
+        const px = x + dx * GRID, py = y + dy * GRID;
+        if (px >= 0 && py >= 0 && !hit(px, py)) return { x: px, y: py };
+      }
+    }
+    return { x, y };
   },
 
   nodeById(nid) { return this.circuit.nodes.find(n => n.nid === nid); },
@@ -687,13 +822,15 @@ const Editor = {
         const v = vals[n.nid]?.[pin];
         const dot = pe.querySelector('.pdot');
         dot.className = 'pdot ' + (v === null || v === undefined ? '' : T.cls(v));
-        pe.classList.toggle('pending', !!(this.pending && this.pending.nid === n.nid && this.pending.pin === pin));
+        pe.classList.toggle('pending', !!(this.pending && this.pending.nid === n.nid && this.pending.pin === pin && this.pending.dir === pe.dataset.dir));
       });
     }
     this.applyView();
     this.drawWires(vals, this.planAllRoutes());
     this.renderIoPanel();
     const gates = this.circuit.nodes.filter(n => n.type !== 'INPUT' && n.type !== 'OUTPUT').length;
+    const hint = document.getElementById('board-hint');
+    if (hint) hint.classList.toggle('quiet', this.circuit.wires.length > 0);
     document.getElementById('stat-gates').textContent = gates;
     this.updateSelInfo();
     const nBad = this._badCount || 0;
@@ -703,274 +840,365 @@ const Editor = {
       floating ? `● ${t('simFloat', floating)}` : `● ${t('simRun')}`;
   },
 
-  // 标准逻辑符号（ANSI Distinctive Shape），复合块用矩形、常量用圆形端子
+  // 标准逻辑符号（ANSI Distinctive Shape）。几何约定：
+  // 输入钉全在 x=0、输出钉全在 x=w（w 为 22 的倍数），钉间距一格 22px，
+  // 钉与符号本体之间画引线，节点吸附网格后钉位必落在网格或半格上，走线天然对齐。
   shapeOf(type) {
     const ST = 'stroke:#8b94a7;stroke-width:1.6;fill:#2b323f';
     const BUB = 'stroke:#8b94a7;stroke-width:1.6;fill:#171a20';
     const TXT = 'fill:#c6ccda;font-family:JetBrains Mono,monospace;font-size:11px;text-anchor:middle';
-    const spread = (n, lo, hi) => n === 1 ? [(lo + hi) / 2] : Array.from({ length: n }, (_, i) => lo + (hi - lo) * i / (n - 1));
-    // 2 输入门：AND 系 D 形 / OR 系尖拱形（+ 反相圈 = NAND / NOR）
-    if (['TMIN', 'TNAND', 'TMAX', 'TNOR'].includes(type)) {
-      const isOr = type === 'TMAX' || type === 'TNOR';
-      const bub = type === 'TNAND' || type === 'TNOR';
-      const body = isOr
-        ? `<path class="bd" d="M14 8 Q34 32 14 56 Q46 56 64 32 Q46 8 14 8 Z" style="${ST}"/>`
-        : `<path class="bd" d="M12 8 H40 A24 24 0 0 1 40 56 H12 Z" style="${ST}"/>`;
-      const outX = bub ? 72 : 64;
-      return {
-        w: 84, h: 64,
-        svg: body + (bub ? `<circle cx="68" cy="32" r="4" style="${BUB}"/>` : ''),
-        inA: spread(2, 22, 42).map(y => ({ x: isOr ? 22 : 12, y })),
-        outA: [{ x: outX, y: 32 }],
-      };
-    }
-    // 1 输入门：三角反相（STI 带圈）/ 阈值缓冲（NTI/PTI）/ 判别器（ISP/ISN/ISZ，阈值横杆位置不同）
-    if (['STI', 'NTI', 'PTI', 'ISP', 'ISN', 'ISZ'].includes(type)) {
-      const bub = type === 'STI';
-      const barY = { NTI: 40, ISN: 40, PTI: 16, ISP: 16, ISZ: 28 }[type];
-      const outX = bub ? 62 : 54;
-      return {
-        w: 76, h: 56,
-        svg: `<path class="bd" d="M14 8 L54 28 L14 48 Z" style="${ST}"/>` +
-          (bub ? `<circle cx="58" cy="28" r="4" style="${BUB}"/>` : '') +
-          (barY != null ? `<line x1="24" y1="${barY}" x2="36" y2="${barY}" stroke="#ffa726" stroke-width="2.5"/>` : ''),
-        inA: [{ x: 14, y: 28 }],
-        outA: [{ x: outX, y: 28 }],
-      };
-    }
-    // MUX：梯形 + 内部汇流线（三路并一路）
-    if (type === 'MUX') {
-      return {
-        w: 84, h: 72,
-        svg: `<polygon class="bd" points="12,6 62,14 62,58 12,66" style="${ST}"/>` +
-          `<path d="M38 29 L47 36 L38 43 M47 36 L53 36" stroke="#55617a" stroke-width="1.4" fill="none"/>`,
-        inA: spread(4, 18, 57).map(y => ({ x: 12, y })),
-        outA: [{ x: 62, y: 36 }],
-      };
-    }
-    // CMP：比较器三角 + =?
-    if (type === 'CMP') {
-      return {
-        w: 76, h: 64,
-        svg: `<path class="bd" d="M14 8 L60 32 L14 56 Z" style="${ST}"/>` +
-          `<text x="33" y="37" style="${TXT}" font-size="12">= ?</text>`,
-        inA: spread(2, 22, 42).map(y => ({ x: 14, y })),
-        outA: [{ x: 60, y: 32 }],
-      };
-    }
-    // DEC：扩口梯形（一路扇出三路）+ 扇形线
-    if (type === 'DEC') {
-      return {
-        w: 66, h: 84,
-        svg: `<polygon class="bd" points="14,26 54,6 54,78 14,58" style="${ST}"/>` +
-          `<path d="M30 42 L44 22 M30 42 L44 42 M30 42 L44 62" stroke="#55617a" stroke-width="1.4" fill="none"/>`,
-        inA: [{ x: 14, y: 42 }],
-        outA: spread(3, 20, 64).map(y => ({ x: 54, y })),
-      };
-    }
-    // 常量：圆形端子
-    if (['C_M', 'C_Z', 'C_P'].includes(type)) {
-      const sym = type === 'C_M' ? '−' : type === 'C_Z' ? '0' : '+';
-      return {
-        w: 56, h: 56,
-        svg: `<circle class="bd" cx="28" cy="28" r="18" style="${ST}"/><text x="28" y="33" style="${TXT}">${sym}</text>`,
-        inA: [],
-        outA: [{ x: 46, y: 28 }],
-      };
-    }
-    // 算术块：八角形 + 求和 glyph（HADD Σ / FADD Σ+ / ADD2 Σ2 / SUB2 Σ−）
-    if (['HADD', 'FADD', 'ADD2', 'SUB2'].includes(type)) {
-      const d = COMP_DEFS[type];
-      const ni = d.inputs.length, no = d.outputs.length;
-      const H = Math.max(64, Math.max(ni, no) * 20 + 24);
-      const c = 12;
-      const glyph = { HADD: 'Σ', FADD: 'Σ+', ADD2: 'Σ2', SUB2: 'Σ−' }[type];
-      return {
-        w: 120, h: H,
-        svg: `<polygon class="bd" points="${10 + c},6 ${110 - c},6 110,${6 + c} 110,${H - 6 - c} ${110 - c},${H - 6} ${10 + c},${H - 6} 10,${H - 6 - c} 10,${6 + c}" style="${ST}"/>` +
-          `<text x="62" y="${H / 2 + 7}" style="${TXT}" font-size="17">${glyph}</text>`,
-        inA: spread(ni, 24, H - 24).map(y => ({ x: 10, y })),
-        outA: spread(no, 24, H - 24).map(y => ({ x: 110, y })),
-      };
-    }
-    // 时序块：双线框 + 数据流 glyph（DFF：D→Q / REG：EN 门控 D→Q）
-    if (['DFF', 'REG1'].includes(type)) {
-      const d = COMP_DEFS[type];
-      const ni = d.inputs.length, no = d.outputs.length;
-      const H = Math.max(56, Math.max(ni, no) * 20 + 24);
-      const glyph = type === 'DFF'
-        ? `<text x="60" y="${H / 2 + 4}" style="${TXT}" font-size="12">D→Q</text>`
-        : `<text x="60" y="${H / 2 - 6}" style="${TXT}" font-size="9">EN</text>` +
-          `<text x="60" y="${H / 2 + 9}" style="${TXT}" font-size="12">D→Q</text>`;
-      return {
-        w: 120, h: H,
-        svg: `<rect class="bd" x="10" y="6" width="100" height="${H - 12}" style="${ST}"/>` +
-          `<rect x="15" y="11" width="90" height="${H - 22}" stroke="#4a5468" stroke-width="1" fill="none"/>` +
-          glyph,
-        inA: spread(ni, 24, H - 24).map(y => ({ x: 10, y })),
-        outA: spread(no, 24, H - 24).map(y => ({ x: 110, y })),
-      };
-    }
-    // ALU：高梯形 + 运算 glyph
-    if (type === 'ALU1') {
-      const d = COMP_DEFS[type];
-      const ni = d.inputs.length, no = d.outputs.length;
-      const H = Math.max(84, Math.max(ni, no) * 20 + 24);
-      return {
-        w: 120, h: H,
-        svg: `<polygon class="bd" points="12,6 66,14 66,${H - 14} 12,${H - 6}" style="${ST}"/>`,
-        inA: spread(ni, 26, H - 26).map(y => ({ x: 12, y })),
-        outA: spread(no, 26, H - 26).map(y => ({ x: 66, y })),
-      };
-    }
-    // 兜底：矩形块
+    const LEAD = 'stroke:#6b7385;stroke-width:1.6';
+    const G = GRID;
     const d = COMP_DEFS[type];
     const ni = d.inputs.length, no = d.outputs.length;
-    const H = Math.max(56, Math.max(ni, no) * 20 + 24);
+    const nr = Math.max(ni, no, 1);
+    let h = (nr + 1) * G;
+    if (type === 'DFF') h = 3 * G;
+    // n 个钉在高 h 的符号上居中排布，间距一格
+    const rows = (n) => Array.from({ length: n }, (_, i) => h / 2 + (i - (n - 1) / 2) * G);
+    const inY = rows(ni), outY = rows(no);
+    let w = 88, body = '', bx0 = 18, bx1 = 70;
+    const k = type;
+    if (['TMIN', 'TNAND', 'TMAX', 'TNOR'].includes(k)) {
+      const isOr = k === 'TMAX' || k === 'TNOR', bub = k === 'TNAND' || k === 'TNOR';
+      const c = h / 2, t0 = c - 25, b0 = c + 25;
+      body = isOr
+        ? `<path class="bd" d="M16 ${t0} Q34 ${c} 16 ${b0} Q50 ${b0} 70 ${c} Q50 ${t0} 16 ${t0} Z" style="${ST}"/>`
+        : `<path class="bd" d="M18 ${t0} H44 A25 25 0 0 1 44 ${b0} H18 Z" style="${ST}"/>`;
+      bx0 = isOr ? 24 : 18; bx1 = isOr ? 70 : 69;
+      if (bub) { body += `<circle cx="${bx1 + 4}" cy="${c}" r="4" style="${BUB}"/>`; bx1 += 8; }
+    } else if (['STI', 'NTI', 'PTI', 'ISP', 'ISN', 'ISZ'].includes(k)) {
+      const c = h / 2;
+      body = `<path class="bd" d="M20 ${c - 16} L60 ${c} L20 ${c + 16} Z" style="${ST}"/>`;
+      bx0 = 20; bx1 = 60;
+      if (k === 'STI') { body += `<circle cx="64" cy="${c}" r="4" style="${BUB}"/>`; bx1 = 68; }
+      const barY = { NTI: c + 7, ISN: c + 7, PTI: c - 7, ISP: c - 7, ISZ: c }[k];
+      if (barY !== undefined) body += `<line x1="27" y1="${barY}" x2="37" y2="${barY}" stroke="#ffa726" stroke-width="2.5"/>`;
+      if (k === 'ISP' || k === 'ISN' || k === 'ISZ') body += `<circle cx="64" cy="${c}" r="2.5" fill="#ffa726"/>`;
+    } else if (k === 'MUX' || k === 'ALU1') {
+      body = `<polygon class="bd" points="18,8 66,22 66,${h - 22} 18,${h - 8}" style="${ST}"/>`;
+      body += k === 'MUX'
+        ? `<path d="M36 ${h / 2 - 9} L46 ${h / 2} L36 ${h / 2 + 9} M46 ${h / 2} L54 ${h / 2}" stroke="#55617a" stroke-width="1.4" fill="none"/>`
+        : `<text x="42" y="${h / 2 + 4}" style="${TXT}" font-size="12">ALU</text>`;
+      bx0 = 18; bx1 = 66;
+    } else if (k === 'CMP') {
+      body = `<path class="bd" d="M18 8 L66 ${h / 2} L18 ${h - 8} Z" style="${ST}"/><text x="35" y="${h / 2 + 4}" style="${TXT}" font-size="11">=?</text>`;
+      bx0 = 18; bx1 = 66;
+    } else if (k === 'DEC') {
+      body = `<polygon class="bd" points="20,${h / 2 - 14} 66,8 66,${h - 8} 20,${h / 2 + 14}" style="${ST}"/>` +
+        `<path d="M34 ${h / 2} L52 ${outY[0]} M34 ${h / 2} L52 ${outY[1]} M34 ${h / 2} L52 ${outY[2]}" stroke="#55617a" stroke-width="1.4" fill="none"/>`;
+      bx0 = 20; bx1 = 66;
+    } else if (['C_M', 'C_Z', 'C_P'].includes(k)) {
+      const sym = k === 'C_M' ? '−' : k === 'C_Z' ? '0' : '+';
+      const col = k === 'C_M' ? '#4fc3f7' : k === 'C_Z' ? '#9aa0b0' : '#ffa726';
+      w = 66;
+      body = `<circle class="bd" cx="28" cy="${h / 2}" r="15" style="${ST}"/><text x="28" y="${h / 2 + 5}" style="${TXT};fill:${col}" font-size="15">${sym}</text>`;
+      bx0 = 13; bx1 = 43;
+    } else if (['HADD', 'FADD', 'ADD2', 'SUB2'].includes(k)) {
+      w = 132; const c = 12;
+      const glyph = { HADD: 'Σ', FADD: 'Σ+', ADD2: 'Σ2', SUB2: 'Σ−' }[k];
+      body = `<polygon class="bd" points="${18 + c},4 ${114 - c},4 114,${4 + c} 114,${h - 4 - c} ${114 - c},${h - 4} ${18 + c},${h - 4} 18,${h - 4 - c} 18,${4 + c}" style="${ST}"/>` +
+        `<text x="66" y="${h / 2 + 6}" style="${TXT}" font-size="17">${glyph}</text>`;
+      bx0 = 18; bx1 = 114;
+    } else if (k === 'DFF' || k === 'REG1') {
+      w = 110;
+      body = `<rect class="bd" x="18" y="4" width="74" height="${h - 8}" style="${ST}"/>` +
+        `<rect x="23" y="9" width="64" height="${h - 18}" stroke="#4a5468" stroke-width="1" fill="none"/>` +
+        (k === 'DFF'
+          ? `<text x="55" y="${h / 2 + 4}" style="${TXT}" font-size="12">D→Q</text>`
+          : `<text x="55" y="${h / 2 - 5}" style="${TXT}" font-size="9">EN</text><text x="55" y="${h / 2 + 10}" style="${TXT}" font-size="12">D→Q</text>`);
+      bx0 = 18; bx1 = 92;
+    } else {
+      w = 132;
+      body = `<rect class="bd" x="18" y="4" width="96" height="${h - 8}" style="${ST}"/><text x="66" y="${h / 2 + 4}" style="${TXT}">${d.en}</text>`;
+      bx0 = 18; bx1 = 114;
+    }
+    const leads = inY.map(y => `<line x1="0" y1="${y}" x2="${bx0 + 2}" y2="${y}" style="${LEAD}"/>`).join('') +
+      outY.map(y => `<line x1="${bx1 - 2}" y1="${y}" x2="${w}" y2="${y}" style="${LEAD}"/>`).join('');
     return {
-      w: 120, h: H,
-      svg: `<rect class="bd" x="10" y="6" width="100" height="${H - 12}" style="${ST}"/>` +
-        `<text x="60" y="${H / 2 + 4}" style="${TXT}">${d.en}</text>`,
-      inA: spread(ni, 18, H - 18).map(y => ({ x: 10, y })),
-      outA: spread(no, 18, H - 18).map(y => ({ x: 110, y })),
+      w, h,
+      svg: leads + body,
+      inA: inY.map(y => ({ x: 0, y })),
+      outA: outY.map(y => ({ x: w, y })),
     };
   },
+  // 元件几何（节点局部坐标）：钉位与包络全部由此算出，不读 DOM
+  geomOf(n) {
+    if (n.type === 'INPUT') return { w: IO_W, h: IO_H, ins: {}, outs: { Q: { x: IO_W, y: IO_H / 2 } } };
+    if (n.type === 'OUTPUT') return { w: IO_W, h: IO_H, ins: { A: { x: 0, y: IO_H / 2 } }, outs: {} };
+    if (!this._geo) this._geo = {};
+    if (this._geo[n.type]) return this._geo[n.type];
+    const s = this.shapeOf(n.type), d = COMP_DEFS[n.type];
+    const g = { w: s.w, h: s.h + PT, ins: {}, outs: {} };
+    d.inputs.forEach((p, i) => { g.ins[p] = { x: s.inA[i].x, y: s.inA[i].y + PT }; });
+    d.outputs.forEach((p, i) => { g.outs[p] = { x: s.outA[i].x, y: s.outA[i].y + PT }; });
+    return (this._geo[n.type] = g);
+  },
 
-  pinEl(n, p, dir, edge, anchor) {
+  pinEl(n, p, dir, anchor) {
     const pe = document.createElement('div');
     pe.className = 'pin ' + dir; pe.dataset.pin = p; pe.dataset.dir = dir; pe.dataset.nid = n.nid;
-    pe.innerHTML = dir === 'in'
-      ? `<span class="pdot"></span><span class="pl">${p}</span>`
-      : `<span class="pl">${p}</span><span class="pdot"></span>`;
-    if (edge && anchor) { pe.style.left = anchor.x + 'px'; pe.style.top = anchor.y + 'px'; }
-    if (dir === 'in') {
-      pe.addEventListener('pointerdown', (e) => e.stopPropagation());
-      pe.onclick = (e) => { e.stopPropagation(); this.onPin(n.nid, p, 'in'); };
-    } else {
-      pe.addEventListener('pointerdown', (e) => {
-        e.stopPropagation();
-        if (e.button !== 0) return;
-        this.startWire(n.nid, p);
-      });
-      pe.onclick = (e) => { e.stopPropagation(); this.onPin(n.nid, p, 'out'); };
-    }
+    pe.innerHTML = `<span class="pdot"></span><span class="pl">${p}</span>`;
+    pe.style.left = anchor.x + 'px'; pe.style.top = anchor.y + 'px';
+    pe.addEventListener('pointerdown', (e) => {
+      e.stopPropagation();
+      if (e.button !== 0) return;
+      this.pinDown(n.nid, p, dir, e);
+    });
     return pe;
   },
 
   renderNode(n) {
     const d = this.defOf(n);
     const isIO = n.type === 'INPUT' || n.type === 'OUTPUT';
+    const g = this.geomOf(n);
     const el = document.createElement('div');
+    el.dataset.nid = n.nid;
     if (isIO) {
-      el.className = 'node io' + (n.type === 'INPUT' ? ' io-in clickable' : ' io-out');
-      el.dataset.nid = n.nid;
-      el.innerHTML = `<div class="nh"><span>${n.ioName} <span class="en">${n.type === 'INPUT' ? 'IN −/0/+' : 'OUT'}</span></span><span class="val">…</span></div>` +
-        `<div class="pins"></div>${n.type === 'INPUT' ? `<div class="use">${t('useIn')}</div>` : `<div class="use">${t('useOut')}</div>`}`;
-      const pinsBox = el.querySelector('.pins');
-      (d.inputs || []).forEach(p => pinsBox.appendChild(this.pinEl(n, p, 'in', false)));
-      (d.outputs || []).forEach(p => pinsBox.appendChild(this.pinEl(n, p, 'out', false)));
+      // 紧凑端子：名字 + 值牌，钉在边缘中线上（输入端点击切换 −/0/+）
+      const isIn = n.type === 'INPUT';
+      el.className = 'node io' + (isIn ? ' io-in clickable' : ' io-out');
+      el.style.width = IO_W + 'px'; el.style.height = IO_H + 'px';
+      el.title = isIn ? t('useIn') : t('useOut');
+      el.innerHTML = `<span class="ioname">${n.ioName}</span><span class="iokind">${isIn ? 'IN' : 'OUT'}</span><span class="val">…</span>`;
+      for (const [p, a] of Object.entries(isIn ? g.outs : g.ins)) el.appendChild(this.pinEl(n, p, isIn ? 'out' : 'in', a));
     } else {
       // 门符号：浮动名牌 + 值 + SVG 符号体 + 边缘钉
       const s = this.shapeOf(n.type);
       el.className = 'node gate';
-      el.dataset.nid = n.nid;
       el.style.width = s.w + 'px';
       el.innerHTML = `<div class="nhead"><span class="ntag" title="${compName(n.type)} ${d.en}">${compName(n.type)}</span><span class="nval val">…</span></div>` +
         `<svg width="${s.w}" height="${s.h}" viewBox="0 0 ${s.w} ${s.h}">${s.svg}</svg>`;
-      const PT = 24; // 名牌条高度，钉坐标整体下移
-      (d.inputs || []).forEach((p, i) => el.appendChild(this.pinEl(n, p, 'in', true, { x: s.inA[i].x, y: s.inA[i].y + PT })));
-      (d.outputs || []).forEach((p, i) => el.appendChild(this.pinEl(n, p, 'out', true, { x: s.outA[i].x, y: s.outA[i].y + PT })));
+      for (const [p, a] of Object.entries(g.ins)) el.appendChild(this.pinEl(n, p, 'in', a));
+      for (const [p, a] of Object.entries(g.outs)) el.appendChild(this.pinEl(n, p, 'out', a));
     }
-    // 拖动（多选联动，网格吸附；收尾新增重叠则回滚）
-    const snap = snapG;
+    // 拖动（多选联动，网格吸附；收尾新增重叠先挤空位，无位才回滚）
     let sx = 0, sy = 0, startPos = null, dragging = false, moved = false, histPushed = false, beforeOv = 0;
     el.addEventListener('pointerdown', (e) => {
       if (e.target.closest('.pin') || e.button !== 0) return;
+      if (this.pending && !this.wiring) {
+        // 点选连线模式下点到元件本体：接到最近的空闲钉
+        const tgt = this.pinNearNode(n, this.toWorld(e.clientX, e.clientY), this.pending.dir === 'out' ? 'in' : 'out');
+        if (tgt) { e.stopPropagation(); this.completeTo(tgt); return; }
+      }
       if (e.shiftKey) {
         if (!this.selected.includes(n.nid)) this.selected.push(n.nid);
-        this.selectedWire = null; this.refresh(); return;
+        this.selectedWire = null; this.markSelection(); return;
       }
       if (!this.selected.includes(n.nid)) {
         this.selected = [n.nid]; this.selectedWire = null; this.selectedWp = null;
-        this.refresh();
+        this.markSelection();
       }
       dragging = true; moved = false; histPushed = false;
       sx = e.clientX; sy = e.clientY;
-      try { beforeOv = this.findOverlaps().length; } catch { beforeOv = 0; }
+      beforeOv = this._badCount || 0;
       startPos = new Map(this.selected.map(id => { const m = this.nodeById(id); return [id, { x: m.x, y: m.y }]; }));
       try { el.setPointerCapture(e.pointerId); } catch {}
     });
     el.addEventListener('pointermove', (e) => {
       if (!dragging) return;
-      const dx = (e.clientX - sx) / this.zoom, dy = (e.clientY - sy) / this.zoom;
-      if (Math.abs(e.clientX - sx) + Math.abs(e.clientY - sy) > 3) {
+      if (!moved && Math.abs(e.clientX - sx) + Math.abs(e.clientY - sy) > 3) {
         moved = true;
         if (!histPushed) { this.pushHistory(); histPushed = true; }
+        el.classList.add('dragging');
       }
       if (!moved) return;
+      const dx = (e.clientX - sx) / this.zoom, dy = (e.clientY - sy) / this.zoom;
+      let changed = false;
       for (const [id, o] of startPos) {
         const m = this.nodeById(id);
         if (!m) continue;
-        m.x = snap(Math.max(-30, o.x + dx));
-        m.y = snap(Math.max(0, o.y + dy));
+        const nx = snapG(Math.max(0, o.x + dx)), ny = snapG(Math.max(0, o.y + dy));
+        if (nx === m.x && ny === m.y) continue;
+        m.x = nx; m.y = ny; changed = true;
         const mel = this.elBoard.querySelector(`[data-nid="${id}"]`);
         if (mel) { mel.style.left = m.x + 'px'; mel.style.top = m.y + 'px'; }
       }
-      this.drawWires();
+      // 只在跨格时重绘，且合并到下一帧
+      if (changed) this.requestDraw();
     });
-    el.addEventListener('pointerup', () => {
+    const end = () => {
       if (!dragging) return;
       dragging = false;
+      el.classList.remove('dragging');
       if (!moved) {
         this.selected = [n.nid]; this.selectedWire = null;
         if (n.type === 'INPUT') { n.val = n.val === -1 ? 0 : n.val === 0 ? 1 : -1; }
         this.refresh();
-      } else this.settleOverlap(beforeOv, null, null);
-    });
+      } else this.settleNodes(beforeOv, [...startPos.keys()]);
+    };
+    el.addEventListener('pointerup', end);
+    el.addEventListener('pointercancel', end);
+    el.style.left = n.x + 'px'; el.style.top = n.y + 'px';
     this.elBoard.appendChild(el);
   },
+  // 元件搬动收尾：新增重叠先把这批元件整体挪到附近空位，无位才回滚
+  settleNodes(before, ids) {
+    const cur = this.overlapCount();
+    if (cur <= before) { this.refresh(); return; }
+    const orig = ids.map(id => { const m = this.nodeById(id); return m ? [m, m.x, m.y] : null; }).filter(Boolean);
+    for (let d = 1; d <= 2; d++) {
+      for (let i = -d; i <= d; i++) for (const [dx, dy] of [[i, -d], [i, d], [-d, i], [d, i]]) {
+        for (const [m, x, y] of orig) { m.x = Math.max(0, x + dx * GRID); m.y = Math.max(0, y + dy * GRID); }
+        if (this.findOverlaps(null, before).length <= before) {
+          this.refresh();
+          try { this.toast(t('overlapNudged')); } catch {}
+          return;
+        }
+      }
+    }
+    for (const [m, x, y] of orig) { m.x = x; m.y = y; }
+    this.settleOverlap(before, null, null);
+  },
 
-  // 连线（拖拽 + 点选两用）
-  startWire(nid, pin) {
-    this.pending = { nid, pin };
+  // 连线：按住钉拖到对端（正反向都行），点选两用；靠近对端钉自动吸附
+  pinDown(nid, pin, dir, e) {
+    // 点选模式第二下：已有起点且方向相反，直接完成
+    if (this.pending && !this.wiring && this.pending.dir !== dir && !(this.pending.nid === nid && this.pending.pin === pin)) {
+      this.completeTo({ nid, pin, dir });
+      return;
+    }
+    // 已连线的输入钉：拖动 = 拎起这根线从源头改接；原地点 = 选中这根线
+    const occupied = dir === 'in' ? (this.circuit.wires.find(w => w.to.nid === nid && w.to.pin === pin) || null) : null;
+    let picked = null;
+    const before = this._badCount || 0;
+    this.pending = occupied ? null : { nid, pin, dir };
     this.wiring = true;
-    const wr = this.elWrap.getBoundingClientRect();
-    this.mouse = null;
-    const move = (e) => {
-      this.mouse = { x: (e.clientX - wr.left - this.pan.x) / this.zoom, y: (e.clientY - wr.top - this.pan.y) / this.zoom };
-      this.drawWires();
+    this.snapTarget = null;
+    this.mouse = this.toWorld(e.clientX, e.clientY);
+    const sx = e.clientX, sy = e.clientY;
+    let moved = false;
+    if (!occupied) { this.markPending(); this.drawPreview(); }
+    const move = (ev) => {
+      if (!moved && Math.abs(ev.clientX - sx) + Math.abs(ev.clientY - sy) > 4) {
+        moved = true;
+        if (occupied) {
+          picked = occupied;
+          this.pushHistory();
+          this.circuit.wires = this.circuit.wires.filter(w => w !== picked);
+          this.pending = { nid: picked.from.nid, pin: picked.from.pin, dir: 'out' };
+          this.refresh();
+        }
+      }
+      if (!this.pending) return;
+      this.mouse = this.toWorld(ev.clientX, ev.clientY);
+      this.snapTarget = this.findSnap(ev);
+      if (!this._pvRaf) this._pvRaf = requestAnimationFrame(() => { this._pvRaf = 0; this.drawPreview(); });
     };
-    const up = () => {
+    const up = (ev) => {
       window.removeEventListener('pointermove', move);
       window.removeEventListener('pointerup', up);
+      this.wiring = false;
+      const tgt = moved ? this.findSnap(ev) : null;
+      if (tgt) { this.completeTo(tgt, !!picked, before); return; }
+      if (!moved && occupied) {
+        this.pending = null;
+        this.selected = []; this.selectedWp = null; this.selectedWire = occupied.wid;
+        this.drawWires(); this.markSelection(); return;
+      }
+      if (!moved) {
+        // 原地点一下：进入点选模式，等第二下（指针移动时预览跟随）
+        this.mouse = null; this.drawPreview(); return;
+      }
+      this.pending = null; this.mouse = null; this.snapTarget = null;
+      if (picked) { try { this.toast(t('tUnplug')); } catch {} }
+      this.refresh();
     };
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', up);
-    this.refresh();
   },
-  onPin(nid, pin, dir) {
-    if (this.suppressClick) return;
-    if (dir === 'out') {
-      // click-click 模式起点
-      this.pending = { nid, pin };
-      this.refresh(); return;
+  // 吸附目标：指针下的对端钉 > 28px 内最近的对端钉 > 指针下元件本体上最近的空闲对端钉
+  findSnap(ev) {
+    if (!this.pending) return null;
+    const want = this.pending.dir === 'out' ? 'in' : 'out';
+    const m = this.toWorld(ev.clientX, ev.clientY);
+    const el = document.elementFromPoint(ev.clientX, ev.clientY);
+    const pe = el && el.closest ? el.closest('.pin') : null;
+    if (pe && pe.dataset.dir === want && this.validTarget(Number(pe.dataset.nid), pe.dataset.pin, want)) {
+      return { nid: Number(pe.dataset.nid), pin: pe.dataset.pin, dir: want };
     }
-    // 输入钉：完成连线
-    if (!this.pending) { this.toast(t('tFirstOut')); return; }
-    this.completeWire(nid, pin);
+    const R = 28 / this.zoom;
+    let best = null, bd = R;
+    for (const n of this.circuit.nodes) {
+      const g = this.geomOf(n);
+      if (m.x < n.x - R || m.x > n.x + g.w + R || m.y < n.y - R || m.y > n.y + g.h + R) continue;
+      for (const [p, a] of Object.entries(want === 'in' ? g.ins : g.outs)) {
+        const dd = Math.hypot(n.x + a.x - m.x, n.y + a.y - m.y);
+        if (dd < bd && this.validTarget(n.nid, p, want)) { bd = dd; best = { nid: n.nid, pin: p, dir: want }; }
+      }
+    }
+    if (best) return best;
+    const ne = el && el.closest ? el.closest('.node') : null;
+    if (ne) {
+      const n = this.nodeById(Number(ne.dataset.nid));
+      if (n) return this.pinNearNode(n, m, want);
+    }
+    return null;
   },
-  completeWire(nid, pin) {
-    const from = this.pending;
-    this.pending = null; this.wiring = false; this.mouse = null;
-    if (!from) { this.refresh(); return; }
-    if (this.circuit.wires.some(w => w.to.nid === nid && w.to.pin === pin)) {
-      this.toast(t('tInUse')); this.refresh(); return;
+  validTarget(nid, pin, dir) {
+    const P = this.pending;
+    if (!P) return false;
+    if (P.nid === nid) {
+      // 只有状态件允许自环（如 DFF.Q → 自己的 D）
+      const n = this.nodeById(nid);
+      if (!n || !(n.type === 'DFF' || n.type === 'REG1')) return false;
     }
-    if (from.nid === nid) { this.toast(t('tNoSelf')); this.refresh(); return; }
-    const before = this.overlapCount();
-    this.pushHistory();
-    this.circuit.wires.push({ wid: this.widSeq++, from: { ...from }, to: { nid, pin }, pts: [] });
+    return true;
+  },
+  // 元件本体上离 m 最近的对端钉（输入钉优先空闲的）
+  pinNearNode(n, m, want) {
+    const g = this.geomOf(n);
+    let best = null, bd = Infinity;
+    for (const [p, a] of Object.entries(want === 'in' ? g.ins : g.outs)) {
+      if (!this.validTarget(n.nid, p, want)) continue;
+      const busy = want === 'in' && this.circuit.wires.some(w => w.to.nid === n.nid && w.to.pin === p);
+      const dd = Math.hypot(n.x + a.x - m.x, n.y + a.y - m.y) + (busy ? 1000 : 0);
+      if (dd < bd) { bd = dd; best = { nid: n.nid, pin: p, dir: want }; }
+    }
+    return best;
+  },
+  // 完成连线：落到已占用的输入钉则替换旧线
+  completeTo(tgt, histDone = false, before) {
+    const P = this.pending;
+    this.pending = null; this.wiring = false; this.mouse = null; this.snapTarget = null;
+    if (!P || !tgt || P.dir === tgt.dir) { this.refresh(); return; }
+    const from = P.dir === 'out' ? { nid: P.nid, pin: P.pin } : { nid: tgt.nid, pin: tgt.pin };
+    const to = P.dir === 'out' ? { nid: tgt.nid, pin: tgt.pin } : { nid: P.nid, pin: P.pin };
+    if (from.nid === to.nid) {
+      const n = this.nodeById(from.nid);
+      if (!n || !(n.type === 'DFF' || n.type === 'REG1')) { this.toast(t('tNoSelf')); this.refresh(); return; }
+    }
+    if (before === undefined) before = this._badCount || 0;
+    if (!histDone) this.pushHistory();
+    const old = this.circuit.wires.find(w => w.to.nid === to.nid && w.to.pin === to.pin);
+    if (old) this.circuit.wires = this.circuit.wires.filter(w => w !== old);
+    this.circuit.wires.push({ wid: this.widSeq++, from, to, pts: [] });
+    if (old) { try { this.toast(t('tReplaced')); } catch {} }
     this.settleOverlap(before, null, null);
+  },
+  markPending() {
+    this.elBoard.querySelectorAll('.pin.pending').forEach(p => p.classList.remove('pending'));
+    if (!this.pending) return;
+    const el = this.elBoard.querySelector(`[data-nid="${this.pending.nid}"] .pin[data-pin="${this.pending.pin}"][data-dir="${this.pending.dir}"]`);
+    if (el) el.classList.add('pending');
+  },
+  // 连线预览：起点 → 吸附钉或指针，直角虚线；只重画预览层
+  drawPreview() {
+    const L = this.elPL;
+    if (!L) return;
+    if (!this.pending) { L.innerHTML = ''; return; }
+    const P = this.pending;
+    const a = this.wirePoint(P.nid, P.pin, P.dir);
+    if (!a) { L.innerHTML = ''; return; }
+    const tg = this.snapTarget;
+    const b = tg ? this.wirePoint(tg.nid, tg.pin, tg.dir) : (this.mouse || null);
+    let s = `<rect x="${a.x - 8}" y="${a.y - 8}" width="16" height="16" fill="none" stroke="#8f7bff" stroke-width="2" stroke-dasharray="4 3"/>`;
+    if (b) {
+      const pts = P.dir === 'out' ? [a, b] : [b, a];
+      s += `<path d="${this.routeThrough(pts)}" fill="none" stroke="${tg ? '#c9bcff' : '#8f7bff'}" stroke-width="2.5" stroke-dasharray="7 5" opacity=".95"/>`;
+      if (tg) s += `<rect x="${b.x - 10}" y="${b.y - 10}" width="20" height="20" fill="rgba(143,123,255,.25)" stroke="#c9bcff" stroke-width="2"/>`;
+    }
+    L.innerHTML = s;
   },
 
   addWaypoint(wid, pt) {
@@ -1004,13 +1232,15 @@ const Editor = {
     const w = this.circuit.wires.find(x => x.wid === wid);
     if (!w || !w.pts[idx]) return;
     e.stopPropagation();
-    const before = this.overlapCount();
+    const before = this._badCount || 0;
     this.pushHistory();
     this.selectedWp = { wid, idx }; this.selectedWire = null;
     const move = (ev) => {
       const p = this.toWorld(ev.clientX, ev.clientY);
-      w.pts[idx] = { x: snapG(p.x), y: snapG(p.y) };
-      this.drawWires();
+      const q = { x: snapG(p.x), y: snapG(p.y) };
+      if (w.pts[idx] && w.pts[idx].x === q.x && w.pts[idx].y === q.y) return;
+      w.pts[idx] = q;
+      this.requestDraw();
     };
     const up = () => {
       window.removeEventListener('pointermove', move);
@@ -1024,7 +1254,7 @@ const Editor = {
   bendWireAt(wid, e) {
     const w = this.circuit.wires.find(x => x.wid === wid);
     if (!w) return;
-    const before = this.overlapCount();
+    const before = this._badCount || 0;
     if (!Array.isArray(w.pts)) w.pts = [];
     const a = this.wirePoint(w.from.nid, w.from.pin, 'out');
     const b = this.wirePoint(w.to.nid, w.to.pin, 'in');
@@ -1051,8 +1281,10 @@ const Editor = {
         setTimeout(() => this.suppressClick = false, 0);
       }
       const p = this.toWorld(ev.clientX, ev.clientY);
-      w.pts[idx] = { x: snapG(p.x), y: snapG(p.y) };
-      this.drawWires();
+      const q = { x: snapG(p.x), y: snapG(p.y) };
+      if (w.pts[idx].x === q.x && w.pts[idx].y === q.y) return;
+      w.pts[idx] = q;
+      this.requestDraw();
     };
     const up = () => {
       window.removeEventListener('pointermove', move);
@@ -1089,6 +1321,7 @@ const Editor = {
       box.hidden = true;
       if (!moved) {
         if (!e.shiftKey) this.clearSelection();
+        this.pending = null; this.mouse = null; this.snapTarget = null;
         this.refresh(); return;
       }
       const bb = this._box;
@@ -1117,7 +1350,7 @@ const Editor = {
       if (Math.abs(ev.clientX - sx) + Math.abs(ev.clientY - sy) > 3) this.panned = true;
       this.pan.x = ox + (ev.clientX - sx);
       this.pan.y = oy + (ev.clientY - sy);
-      this.applyView(); this.drawWires();
+      this.applyView();
     };
     const up = () => {
       window.removeEventListener('pointermove', move);
@@ -1128,18 +1361,12 @@ const Editor = {
     window.addEventListener('pointerup', up);
   },
 
+  // 钉的世界坐标：纯几何计算（节点坐标 + 钉偏移），不触发布局
   wirePoint(nid, pin, dir) {
-    const el = this.elBoard.querySelector(`[data-nid="${nid}"]`);
-    if (!el) return null;
-    const pe = [...el.querySelectorAll('.pin')].find(x => x.dataset.pin === pin && x.dataset.dir === dir);
-    if (!pe) return null;
-    const dot = pe.querySelector('.pdot');
-    const wr = this.elWrap.getBoundingClientRect();
-    const r = dot.getBoundingClientRect();
-    return {
-      x: (r.left - wr.left + r.width / 2 - this.pan.x) / this.zoom,
-      y: (r.top - wr.top + r.height / 2 - this.pan.y) / this.zoom,
-    };
+    const n = this.nodeById(nid);
+    if (!n) return null;
+    const a = (dir === 'in' ? this.geomOf(n).ins : this.geomOf(n).outs)[pin];
+    return a ? { x: n.x + a.x, y: n.y + a.y } : null;
   },
   pinPos(nid, pin, dir) { return this.wirePoint(nid, pin, dir); },
 
@@ -1202,11 +1429,11 @@ const Editor = {
     }
     return Infinity;
   },
-  // 合并判定：两段线算“重叠在一起”当且仅当平行且（共线长共干 / 近距长并行）。
-  // 共线：异网 >6px、 同网 >24px（钉根短共干豁免）；贴靠：间距 <6px 且并行 >24px，不分网。
+  // 合并判定：两段线算“重叠在一起”当且仅当异网且平行且（共线 >6px / 间距 <6px 并行 >24px）。
+  // 同网（同一输出钉出发）的线电气上就是一根，允许共用主干，分叉处画焊点。
   // 交叉、点触、短 stub 一律不算。返回 null 或 {at}（标红点）。
   mergeInfo(s, t) {
-    if (s.wid === t.wid) return null;
+    if (s.wid === t.wid || s.net === t.net) return null;
     const EPS = 0.5;
     const sH = Math.abs(s.p.y - s.q.y) < EPS, tH = Math.abs(t.p.y - t.q.y) < EPS;
     if (sH !== tH) return null;
@@ -1226,10 +1453,7 @@ const Editor = {
       if (run <= 0) return null;
       at = [(s.p.x + t.p.x) / 2, (lo + hi) / 2];
     }
-    if (gap <= EPS) {
-      if (s.net === t.net ? run > 24 : run > 6) return { at };
-      return null;
-    }
+    if (gap <= EPS) return run > 6 ? { at } : null;
     if (gap < 6 && run > 24) return { at };
     return null;
   },
@@ -1247,12 +1471,8 @@ const Editor = {
   nodeBox(nid, pad = 10) {
     const n = this.nodeById(nid);
     if (!n) return null;
-    let w = 0, h = 0;
-    const el = this.elBoard ? this.elBoard.querySelector(`[data-nid="${nid}"]`) : null;
-    if (el && el.offsetWidth) { w = el.offsetWidth; h = el.offsetHeight; }
-    else if (n.type === 'INPUT' || n.type === 'OUTPUT') { w = 96; h = 110; }
-    else { try { const s = this.shapeOf(n.type); w = s.w; h = s.h + 24; } catch { w = 120; h = 80; } }
-    return { l: n.x - pad, t: n.y - pad, r: n.x + w + pad, b: n.y + h + pad };
+    const g = this.geomOf(n);
+    return { l: n.x - pad, t: n.y - pad, r: n.x + g.w + pad, b: n.y + g.h + pad };
   },
   // 轴对齐线段是否穿入矩形内部（擦边、点触不算）。
   // esc：引脚逃逸点表（本线两端钉坐标）。端点落在逃逸点 2.5px 内时，该端向内 24px 免检，
@@ -1375,24 +1595,25 @@ const Editor = {
       }
       const W8 = this.routeW || (this.routeW = { bad: 1000, body: 150, xing: 30, sep: 60 });
       const scoreOf = (pts) => {
-        let bad = 0, crossBody = 0, xing = 0, sep = 0, len = 0;
+        let bad = 0, crossBody = 0, xing = 0, sep = 0, len = 0, shared = 0;
         const segs = this.wireSegsOf(w, pts);
         for (const s of segs) len += Math.hypot(s.q.x - s.p.x, s.q.y - s.p.y);
         for (const s of segs) {
           for (const o of pool) {
+            if (o.net === net) { shared += this.overlapLen(s, o); continue; }
             if (this.segMerged(s, o)) { bad++; break; }
           }
           for (const o of pool) {
-            if (this.segCross(s, o)) { xing++; break; }
+            if (o.net !== net && this.segCross(s, o)) { xing++; break; }
           }
           for (const o of pool) {
-            if (this.segGap(s, o) < 20) { sep++; break; }
+            if (o.net !== net && this.segGap(s, o) < 20) { sep++; break; }
           }
           for (const r of obs) {
             if (this.segHitsBox(s, r, esc)) { crossBody++; break; }
           }
         }
-        return { v: bad * W8.bad + crossBody * W8.body + len / 40 + segs.length * 2 + xing * W8.xing + sep * W8.sep, bad, crossBody, xing };
+        return { v: bad * W8.bad + crossBody * W8.body + (len - Math.min(len, shared) * 0.85) / 40 + segs.length * 2 + xing * W8.xing + sep * W8.sep, bad, crossBody, xing };
       };
       let best = cands[0], bestScore = Infinity, bestHard = null;
       for (const c of cands) {
@@ -1446,6 +1667,7 @@ const Editor = {
       }
     };
     for (const s of poolSegs) {
+      if (s.net === net) continue;
       const steps = Math.ceil(Math.hypot(s.q.x - s.p.x, s.q.y - s.p.y) / (P / 2)) || 1;
       for (let i = 0; i <= steps; i++) {
         const [cx, cy] = toC(s.p.x + (s.q.x - s.p.x) * i / steps, s.p.y + (s.q.y - s.p.y) * i / steps);
@@ -1586,86 +1808,79 @@ const Editor = {
     return bad;
   },
 
+  // 导线层整体用字符串一次写入；不用 CSS filter（大画布上逐帧重绘滤镜是拖拽卡顿的主因），
+  // 发光改由底层宽描边 halo 承担。
   drawWires(vals, plan) {
-    const svg = this.elWires;
-    svg.innerHTML = '';
-    if (!this.circuit) return;
+    const L = this.elWL;
+    if (!L) return;
+    if (!this.circuit) { L.innerHTML = ''; return; }
     if (!vals) vals = this.evaluate().vals;
     if (!plan) plan = this.planAllRoutes();
-    const NS = 'http://www.w3.org/2000/svg';
     const colorOf = v => (v === 1 ? '#ffa726' : v === -1 ? '#4fc3f7' : v === 0 ? '#9aa0b0' : '#3a4356');
     const badSet = new Set();
     const badPairs = this.findOverlaps(plan);
     for (const o of badPairs) { badSet.add(o.a); badSet.add(o.b); }
     this._badWires = badSet;
     this._badCount = badPairs.length;
+    let halos = '', wires = '', joints = '', wps = '';
     for (const w of this.circuit.wires) {
-      const a = this.wirePoint(w.from.nid, w.from.pin, 'out');
-      const b = this.wirePoint(w.to.nid, w.to.pin, 'in');
-      if (!a || !b || !plan.has(w.wid)) continue;
+      if (!plan.has(w.wid)) continue;
+      const pts = plan.get(w.wid);
+      const a = pts[0], b = pts[pts.length - 1];
       const v = vals[w.from.nid]?.[w.from.pin];
       const col = colorOf(v);
       const live = v !== null && v !== undefined;
-      const d = plan.get(w.wid).map((p, i) => (i ? 'L' : 'M') + ` ${p.x} ${p.y}`).join(' ');
+      const d = pts.map((p, i) => (i ? 'L' : 'M') + p.x + ' ' + p.y).join(' ');
       const isSel = this.selectedWire === w.wid;
       const isBad = badSet.has(w.wid);
-      const halo = document.createElementNS(NS, 'path');
-      halo.setAttribute('d', d); halo.setAttribute('class', 'halo'); halo.setAttribute('stroke', isBad ? '#ff5d5d' : isSel ? '#fff' : col);
-      svg.appendChild(halo);
-      const p = document.createElementNS(NS, 'path');
-      p.setAttribute('d', d); p.setAttribute('class', 'wire' + (isSel ? ' sel' : '') + (isBad ? ' bad' : ''));
-      p.setAttribute('stroke', isBad ? '#ff5d5d' : isSel ? '#fff' : col);
-      p.setAttribute('opacity', live || isSel || isBad ? '.95' : '.55');
-      if (live && !isSel && !isBad) p.style.filter = `drop-shadow(0 0 5px ${col})`;
-      if (isBad) p.style.filter = 'drop-shadow(0 0 6px #ff5d5d)';
-      p.style.strokeDasharray = isBad ? '10 5' : '';
-      p.style.cursor = 'pointer';
-      p.dataset.wid = w.wid;
-      const hit = document.createElementNS(NS, 'path');
-      hit.setAttribute('d', d); hit.setAttribute('class', 'hit'); hit.dataset.wid = w.wid;
-      svg.appendChild(hit); svg.appendChild(p);
+      const stroke = isBad ? '#ff5d5d' : isSel ? '#fff' : col;
+      const net = w.from.nid + '-' + w.from.pin;
+      halos += `<path d="${d}" class="halo${live || isBad ? ' live' : ''}" stroke="${stroke}"/>`;
+      wires += `<path d="${d}" class="hit" data-wid="${w.wid}" data-net="${net}"/>` +
+        `<path d="${d}" class="wire${isSel ? ' sel' : ''}${isBad ? ' bad' : ''}${live ? '' : ' dead'}" stroke="${stroke}" data-wid="${w.wid}" data-net="${net}"/>`;
       for (const pt of [a, b]) {
-        const j = document.createElementNS(NS, 'rect');
-        const s = live ? 9 : 7;
-        j.setAttribute('x', pt.x - s / 2); j.setAttribute('y', pt.y - s / 2);
-        j.setAttribute('width', s); j.setAttribute('height', s);
-        j.setAttribute('fill', live ? col : '#20262f');
-        j.setAttribute('stroke', live ? '#fff' : '#4a5468'); j.setAttribute('stroke-width', '1.5');
-        j.style.pointerEvents = 'none';
-        svg.appendChild(j);
+        const s = live ? 8 : 6;
+        joints += `<rect x="${pt.x - s / 2}" y="${pt.y - s / 2}" width="${s}" height="${s}" fill="${live ? col : '#20262f'}" stroke="${live ? '#0c0e12' : '#4a5468'}" stroke-width="1.5"/>`;
       }
       (w.pts || []).forEach((pt, idx) => {
-        const r = document.createElementNS(NS, 'rect');
-        const s = 12;
         const sel = this.selectedWp && this.selectedWp.wid === w.wid && this.selectedWp.idx === idx;
-        r.setAttribute('x', pt.x - s / 2); r.setAttribute('y', pt.y - s / 2);
-        r.setAttribute('width', s); r.setAttribute('height', s);
-        r.setAttribute('class', 'wp' + (sel ? ' sel' : ''));
-        r.dataset.wid = w.wid; r.dataset.wp = '1'; r.dataset.idx = idx;
-        svg.appendChild(r);
+        wps += `<rect x="${pt.x - 6}" y="${pt.y - 6}" width="12" height="12" class="wp${sel ? ' sel' : ''}" data-wid="${w.wid}" data-wp="1" data-idx="${idx}"/>`;
       });
     }
-    // 连线预览：起点 → 鼠标，直角虚线
-    if (this.pending) {
-      const a = this.wirePoint(this.pending.nid, this.pending.pin, 'out');
-      if (a) {
-        const c = document.createElementNS(NS, 'rect');
-        c.setAttribute('x', a.x - 7); c.setAttribute('y', a.y - 7);
-        c.setAttribute('width', 14); c.setAttribute('height', 14);
-        c.setAttribute('fill', 'none'); c.setAttribute('stroke', '#8f7bff'); c.setAttribute('stroke-width', '2');
-        c.setAttribute('stroke-dasharray', '4 3');
-        svg.appendChild(c);
-        const m = this.mouse || { x: a.x + 90, y: a.y + 30 };
-        const pv = document.createElementNS(NS, 'path');
-        pv.setAttribute('d', this.routeThrough([a, m]));
-        pv.setAttribute('fill', 'none'); pv.setAttribute('stroke', '#8f7bff');
-        pv.setAttribute('stroke-width', '2.5'); pv.setAttribute('stroke-dasharray', '7 5');
-        pv.setAttribute('opacity', '.9'); pv.style.pointerEvents = 'none';
-        svg.appendChild(pv);
+    // 同网分叉焊点：某个拐点上同网线段合计出现 ≥3 个走向即画实心焊点
+    const byNet = new Map();
+    for (const w of this.circuit.wires) {
+      if (!plan.has(w.wid)) continue;
+      const k = w.from.nid + '-' + w.from.pin;
+      if (!byNet.has(k)) byNet.set(k, { v: vals[w.from.nid]?.[w.from.pin], segs: [] });
+      for (const sg of this.wireSegsOf(w, plan.get(w.wid))) byNet.get(k).segs.push(sg);
+    }
+    let dots = '';
+    for (const { v, segs } of byNet.values()) {
+      if (segs.length < 2) continue;
+      const seen = new Set();
+      for (const sg of segs) for (const pt of [sg.p, sg.q]) {
+        const key = Math.round(pt.x) + ',' + Math.round(pt.y);
+        if (seen.has(key)) continue;
+        seen.add(key);
+        const dirs = new Set();
+        for (const o of segs) {
+          const h = Math.abs(o.p.y - o.q.y) < 0.5;
+          const lo = h ? Math.min(o.p.x, o.q.x) : Math.min(o.p.y, o.q.y), hi = h ? Math.max(o.p.x, o.q.x) : Math.max(o.p.y, o.q.y);
+          const on = h ? Math.abs(pt.y - o.p.y) < 0.5 && pt.x >= lo - 0.5 && pt.x <= hi + 0.5
+            : Math.abs(pt.x - o.p.x) < 0.5 && pt.y >= lo - 0.5 && pt.y <= hi + 0.5;
+          if (!on) continue;
+          const c = h ? pt.x : pt.y;
+          if (c > lo + 0.5) dirs.add(h ? 'L' : 'U');
+          if (c < hi - 0.5) dirs.add(h ? 'R' : 'D');
+        }
+        if (dirs.size >= 3) dots += `<rect x="${pt.x - 5}" y="${pt.y - 5}" width="10" height="10" fill="${colorOf(v)}" stroke="#0c0e12" stroke-width="1.5"/>`;
       }
     }
+    L.innerHTML = `<g class="halos">${halos}</g>${wires}<g class="joints">${joints}${dots}</g>${wps}`;
+    if (this._hotNet) L.querySelectorAll(`[data-net="${this._hotNet}"]`).forEach(x => x.classList.add('net-hot'));
+    this.drawPreview();
   },
-
   // 测试
   setInputs(arr) {
     const ins = this.circuit.nodes.filter(n => n.type === 'INPUT');

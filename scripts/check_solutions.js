@@ -1,4 +1,4 @@
-/* 全关参考解回归：同一份 REF_SPEC 在无 DOM 环境下跑满全部测试向量。
+/* 全关参考解回归：电路关 REF_SPEC、汇编关 REF_PROG 在无 DOM 环境下跑满全部测试向量。
  * 用法：node scripts/check_solutions.js（退出码非 0 即有失败）
  */
 const fs = require('fs');
@@ -14,6 +14,9 @@ for (const lv of LEVELS.filter(l => l.kind === 'circuit')) {
   const spec = REF_SPEC[lv.id];
   if (!spec) { console.log('MISS SPEC ' + lv.id); fails++; continue; }
   Editor.circuit = specToCircuit(lv, spec);
+  // 参考解只能用本关元件箱里有的元件
+  const illegal = [...new Set(spec.nodes.map(n => n.t))].filter(k => !(lv.palette || []).includes(k));
+  if (illegal.length) { console.log('   参考解用了元件箱外的元件 ' + lv.id + ': ' + illegal.join(',')); fails++; }
   let pass = 0, total = 0;
   const bad = [];
   if (lv.seq) {
@@ -43,8 +46,16 @@ for (const lv of LEVELS.filter(l => l.kind === 'circuit')) {
   if (pass !== total) fails++;
 }
 for (const lv of LEVELS.filter(l => l.kind === 'program')) {
-  const code = (LEVEL_EN[lv.id] && LEVEL_EN[lv.id].starter) || lv.starter;
-  const ts = (LEVEL_EN[lv.id] && LEVEL_EN[lv.id].progTests) ? LEVEL_EN[lv.id].progTests() : lv.progTests();
+  const code = REF_PROG[lv.id];
+  if (!code) { console.log('MISS PROG ' + lv.id); fails++; continue; }
+  const ts = lv.progTests();
+  const tsEn = (LEVEL_EN[lv.id] && LEVEL_EN[lv.id].progTests) ? LEVEL_EN[lv.id].progTests() : ts;
+  if (JSON.stringify(ts) !== JSON.stringify(tsEn)) { console.log('   progTests 中英不一致 ' + lv.id); fails++; }
+  // starter 只能是骨架：中英两份都不得直接通过全部测试
+  for (const st of [lv.starter, LEVEL_EN[lv.id] && LEVEL_EN[lv.id].starter].filter(Boolean)) {
+    const ok = ts.every(tt => { const r = CPU.run(st, tt.in); return r.ok && JSON.stringify(r.out) === JSON.stringify(tt.want); });
+    if (ok) { console.log('   starter 已是答案 ' + lv.id); fails++; }
+  }
   let pass = 0;
   for (const tt of ts) {
     const r = CPU.run(code, tt.in);

@@ -22,6 +22,9 @@ function LText(lv, f) {
   return lv[f];
 }
 function chIndex(lv) { return Math.max(0, CHAPTERS.indexOf(lv.ch)); }
+// 解锁规则：第一关、前一关已通过、或开发者模式。插入新关后老存档也能顺着接上
+function isUnlocked(i) { return S.dev || i === 0 || S.done.includes(LEVELS[i - 1].id); }
+function doneCount() { return S.done.filter(id => LEVELS.some(l => l.id === id)).length; }
 function chName(i) { return chList()[i] || ''; }
 
 // 路线图节点符号：各关代表元件的本体（复用布线台 shapeOf），特殊关用定制 glyph
@@ -56,9 +59,15 @@ function renderTree() {
   const order = LEVELS.map(l => l.id);
   // 布线台式路线图：章节自下而上排布，关卡蛇形走线，导线直角连接
   // 节点本体是元件符号（非矩形卡片），名牌在符号下方
-  const MW = 1160, TOP = 110, ROW_H = 210, NW = 160, NH = 124;
-  const nCh = CHAPTERS.length;
-  const H = TOP * 2 + (nCh - 1) * ROW_H;
+  const MW = 1160, TOP = 100, ROW_H = 178, NW = 150, NH = 118, PER = 5;
+  const COLX = c => 330 + c * 190;          // 5 列固定栅格，跨行的连线可以垂直对齐
+  const rowsSpec = [];                      // 自下而上：{ ci, lvs, first }
+  CHAPTERS.forEach((ch, ci) => {
+    const lvs = LEVELS.filter(l => l.ch === ch);
+    for (let k = 0; k < lvs.length; k += PER) rowsSpec.push({ ci, lvs: lvs.slice(k, k + PER), first: k === 0 });
+  });
+  const nRows = rowsSpec.length;
+  const H = TOP * 2 + (nRows - 1) * ROW_H;
   const canvas = document.createElement('div');
   canvas.id = 'map-canvas';
   canvas.style.width = MW + 'px';
@@ -69,27 +78,29 @@ function renderTree() {
   svg.setAttribute('viewBox', `0 0 ${MW} ${H}`);
   canvas.appendChild(svg);
   const pos = {};
-  CHAPTERS.forEach((ch, ci) => {
-    const r = nCh - 1 - ci; // 0 = 最底行
-    const cy = TOP + r * ROW_H;
-    const cn = chName(ci).replace(/^[0-9]\s*·\s*/, '');
-    const plate = document.createElement('div');
-    plate.className = 'mplate';
-    plate.style.left = '12px';
-    plate.style.top = (cy - 48) + 'px';
-    plate.innerHTML = `<b>CHAPTER ${ci} · ${cn}</b><small>${t('chDesc')[ci] || ''}</small>`;
-    canvas.appendChild(plate);
-    const lvs = LEVELS.filter(l => l.ch === ch);
-    const k = lvs.length;
-    const span = k > 1 ? Math.min(740, (k - 1) * 220) : 0;
-    const x0 = 690 - span / 2;
-    const dir = (r % 2 === 0) ? 1 : -1; // 蛇形：偶数行左→右，奇数行右→左
-    lvs.forEach((lv, i) => {
-      const seq = dir === 1 ? i : (k - 1 - i);
-      const cx = k === 1 ? 690 : x0 + seq * (span / (k - 1));
+  let col = 0;
+  rowsSpec.forEach((row, r) => {
+    const cy = H - TOP - r * ROW_H;
+    const dir = r % 2 === 0 ? 1 : -1;       // 蛇形：偶数行左→右，奇数行右→左
+    if (row.first) {
+      const cn = chName(row.ci).replace(/^[0-9]\s*·\s*/, '');
+      const plate = document.createElement('div');
+      plate.className = 'mplate';
+      plate.style.left = '12px';
+      plate.style.top = (cy - 48) + 'px';
+      plate.innerHTML = `<b>CHAPTER ${row.ci} · ${cn}</b><small>${t('chDesc')[row.ci] || ''}</small>`;
+      canvas.appendChild(plate);
+    }
+    // 本行从上一行结束的那一列开始往回折；放不下就贴边
+    const k = row.lvs.length;
+    let start = r === 0 ? 0 : col;
+    if (dir === 1) start = Math.min(start, PER - k); else start = Math.max(start, k - 1);
+    row.lvs.forEach((lv, i) => {
+      col = start + dir * i;
+      const cx = COLX(col);
       pos[lv.id] = { x: cx, y: cy };
       const idx = order.indexOf(lv.id);
-      const unlocked = S.dev || idx <= S.done.length;
+      const unlocked = isUnlocked(idx);
       const done = S.done.includes(lv.id);
       const sub = lv.kind === 'program' ? t('kProg')
         : lv.seq ? `${t('kSeq')} · ${lv.steps().length}${t('uSteps')}`
@@ -102,7 +113,7 @@ function renderTree() {
       b.style.top = (cy - NH / 2) + 'px';
       b.style.width = NW + 'px';
       const sh = mapShape(lv.id);
-      const sc = Math.min(150 / sh.w, 66 / sh.h);
+      const sc = Math.min(130 / sh.w, 60 / sh.h);
       const sw = Math.round(sh.w * sc), shh = Math.round(sh.h * sc);
       b.innerHTML = `<span class="mshape"><svg width="${sw}" height="${shh}" viewBox="0 0 ${sh.w} ${sh.h}">${sh.svg}</svg></span>` +
         `<span class="mcap"><b>${LText(lv, 'name')}</b><small>${sub}</small></span>` +
@@ -138,7 +149,7 @@ function renderTree() {
   for (let i = 0; i < order.length - 1; i++) {
     const A = pos[order[i]], B = pos[order[i + 1]];
     const bDone = S.done.includes(order[i + 1]);
-    const bUn = S.dev || (i + 1) <= S.done.length;
+    const bUn = isUnlocked(i + 1);
     const boxA = inkOf(order[i]), boxB = inkOf(order[i + 1]);
     let sa, sb;
     if (Math.abs(A.y - B.y) < 1) {
@@ -148,7 +159,10 @@ function renderTree() {
     else { sa = 'b'; sb = 't'; }
     const p = edge(boxA, sa), q = edge(boxB, sb);
     const path = document.createElementNS(NS, 'path');
-    path.setAttribute('d', Editor.routeThrough([p, q]));
+    const my = (p.y + q.y) / 2;
+    path.setAttribute('d', Math.abs(p.x - q.x) < 1 || Math.abs(p.y - q.y) < 1
+      ? Editor.routeThrough([p, q])
+      : Editor.routeThrough([p, { x: p.x, y: my }, { x: q.x, y: my }, q]));
     path.setAttribute('class', 'mwire ' + (bDone ? 'ok' : bUn ? 'live' : 'dim'));
     svg.appendChild(path);
     for (const pt of [p, q]) {
@@ -159,7 +173,7 @@ function renderTree() {
       svg.appendChild(j);
     }
   }
-  $('stat-progress').textContent = `${S.done.length}/${LEVELS.length}`;
+  $('stat-progress').textContent = `${doneCount()}/${LEVELS.length}`;
   const devBtn = $('btn-dev');
   if (devBtn) {
     devBtn.innerHTML = (S.dev ? ICONS.unlock : ICONS.lock) + `<span>${S.dev ? t('devOn') : t('devOff')}</span>`;
@@ -173,6 +187,9 @@ function showMap() {
   $('map-view').hidden = false;
   $('game-view').hidden = true;
   renderTree();
+  // 路线图很长：滚到当前关卡附近
+  const cur = document.querySelector('.mcell.cur') || document.querySelector('.mcell:not(:disabled):not(.done)');
+  if (cur) cur.scrollIntoView({ block: 'center' });
   $('level-kicker').textContent = t('crumbMap');
   $('level-name-top').textContent = t('crumbPick');
 }
@@ -220,8 +237,10 @@ function loadLevel(id) {
   const isProg = lv.kind === 'program';
   $('board-wrap').style.display = isProg ? 'none' : '';
   $('palette-rail').style.display = isProg ? 'none' : '';
-  $('timeline-strip').style.display = (isProg || !Editor.tlOn) ? 'none' : '';
+  $('timeline-strip').style.display = (isProg || !lv.seq || !Editor.tlOn) ? 'none' : '';
   $('cpu-panel').hidden = !isProg;
+  $('game-view').classList.toggle('comb', isProg || !lv.seq);
+  $('game-view').classList.toggle('prog', isProg);
   if (!isProg) {
     Editor.loadLevel(lv);
     const saved = S.circuits[id];
@@ -234,7 +253,7 @@ function loadLevel(id) {
     renderCpuTestsPreview(lv);
   }
   renderTree();
-  requestAnimationFrame(() => Editor.drawWires());
+  if (!isProg) requestAnimationFrame(() => { Editor.fitView(); Editor.refresh(); });
 }
 
 function saveCurrent() {
@@ -292,6 +311,14 @@ function win(lv) {
   renderTree();
   $('win-title').textContent = LText(lv, 'name') + ' ' + t('winClear');
   $('win-text').textContent = LText(lv, 'win') || t('winDefault');
+  const extra = [];
+  if (lv.kind === 'circuit' && Editor.circuit) extra.push(t('winGates', Editor.circuit.nodes.filter(n => n.type !== 'INPUT' && n.type !== 'OUTPUT').length));
+  const i = LEVELS.indexOf(lv), nx = LEVELS[i + 1];
+  if (nx && nx.palette) {
+    const fresh = nx.palette.filter(k => !(lv.palette || []).includes(k) && COMP_DEFS[k]);
+    if (fresh.length) extra.push(t('winUnlock', fresh.map(compName).join(' · ')));
+  }
+  $('win-extra').innerHTML = extra.map(x => `<span>${x}</span>`).join('');
   $('win-modal').hidden = false;
 }
 
@@ -301,13 +328,12 @@ $('btn-ref').onclick = () => {
   if (!confirm(t('refConfirm'))) return;
   saveCurrent();
   if (lv.kind === 'program') {
-    const en = (LANG === 'en' && LEVEL_EN[lv.id] && LEVEL_EN[lv.id].starter) ? LEVEL_EN[lv.id].starter : null;
-    const code = en || lv.starter || '';
-    $('cpu-code').value = code;
-    S.code[S.cur] = code; persist();
+    if (!loadRefSolution(lv.id)) return;
+    S.code[S.cur] = $('cpu-code').value; persist();
     cpuReset(); renderCpuTestsPreview(lv);
     $('btn-run').click();
   } else if (loadRefSolution(S.cur)) {
+    Editor.fitView();
     $('btn-run').click();
   }
 };
@@ -352,11 +378,34 @@ function expandDrawer() {
 }
 
 // CPU 面板
+// 汇编编辑器行号栏：单步时标出下一条要执行的指令所在行
+function renderGutter() {
+  const ta = $('cpu-code'), g = $('cpu-gutter');
+  if (!ta || !g) return;
+  const n = ta.value.split('\n').length;
+  const ses = cpuSession;
+  const ipLine = ses && !ses.halted && ses.prog[ses.ip] ? ses.prog[ses.ip].line : -1;
+  let h = '';
+  for (let i = 1; i <= n; i++) h += `<span class="ln${i === ipLine ? ' ip' : ''}">${i === ipLine ? '→' : ''}${i}</span>`;
+  g.innerHTML = h;
+  g.scrollTop = ta.scrollTop;
+}
+$('cpu-code').addEventListener('input', () => { cpuSession = null; renderGutter(); });
+$('cpu-code').addEventListener('scroll', () => { $('cpu-gutter').scrollTop = $('cpu-code').scrollTop; });
+$('cpu-code').addEventListener('keydown', (e) => {
+  if (e.key !== 'Tab') return;
+  e.preventDefault();
+  const ta = e.target, a = ta.selectionStart;
+  ta.setRangeText('    ', a, ta.selectionEnd, 'end');
+  renderGutter();
+});
+
 function cpuReset() {
   const src = $('cpu-code').value;
   const { prog, labels, errs } = CPU.parse(src);
   cpuSession = { prog, labels, errs, ip: 0, R: [0,0,0,0], M: new Array(9).fill(0), inp: [], inpIdx: 0, out: [], halted: false };
   renderCpuState(t('cpuReady'));
+  renderGutter();
 }
 function fmtW(v) { return `${decToBal(v, 3)} (${v})`; }
 function renderCpuState(msg) {
@@ -415,6 +464,7 @@ $('btn-cpu-step').onclick = () => {
   const demoIn = (progTestsOf(lv)[0] || { in: [] }).in;
   if (ses.inp.length === 0 && demoIn) { ses.inp = [...demoIn]; }
   renderCpuState(stepOnce(ses));
+  renderGutter();
 };
 function stepOnce(ses) {
   const ins = ses.prog[ses.ip];
