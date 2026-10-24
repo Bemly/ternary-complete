@@ -27,17 +27,30 @@ function isUnlocked(i) { return S.dev || i === 0 || S.done.includes(LEVELS[i - 1
 function doneCount() { return S.done.filter(id => LEVELS.some(l => l.id === id)).length; }
 function chName(i) { return chList()[i] || ''; }
 
-// 路线图节点符号：各关代表元件的本体（复用布线台 shapeOf），特殊关用定制 glyph
+// 路线图节点符号：各关代表元件的本体（复用布线台 shapeOf），特殊关用定制 glyph。
+// 每个符号都给出真实的入钉 pin.in 与出钉 pin.out（符号坐标），关卡之间的导线从上一关出钉接到下一关入钉。
 function mapShape(id) {
   const ST = 'stroke:#8b94a7;stroke-width:1.6;fill:#2b323f';
   const TXT = 'fill:#c6ccda;font-family:JetBrains Mono,monospace;text-anchor:middle';
+  const LEAD = 'stroke:#6b7385;stroke-width:1.6';
+  // 定制 glyph：高 66，左右引线落在中线 y=33，钉在 x=0 与 x=w
+  const glyph = (w, body, x0, x1) => ({
+    w, h: 66,
+    svg: `<line x1="0" y1="33" x2="${x0 + 2}" y2="33" style="${LEAD}"/><line x1="${x1 - 2}" y1="33" x2="${w}" y2="33" style="${LEAD}"/>` + body,
+    pin: { in: { x: 0, y: 33 }, out: { x: w, y: 33 } },
+  });
+  const doc = glyph(88, `<path d="M26 6 H54 L66 18 V60 H26 Z" style="${ST}"/><path d="M54 6 V18 H66" stroke="#4a5468" stroke-width="1.2" fill="none"/><rect x="33" y="27" width="24" height="3" fill="#7c869c"/><rect x="33" y="35" width="24" height="3" fill="#7c869c"/><rect x="33" y="43" width="15" height="3" fill="#7c869c"/>`, 26, 66);
   const custom = {
-    t0_wire: { w: 120, h: 48, svg: `<path d="M8 36 H56 V12 H112" stroke="#8b94a7" stroke-width="3" fill="none"/><rect x="4" y="32" width="8" height="8" fill="#ffa726"/><rect x="52" y="8" width="8" height="8" fill="#ffa726"/><rect x="108" y="8" width="8" height="8" fill="#ffa726"/>` },
-    s3_cnt: { w: 72, h: 64, svg: `<circle cx="36" cy="32" r="24" style="${ST}"/><text x="36" y="38" style="${TXT}" font-size="16">+1</text>` },
-    s3_mem: { w: 88, h: 64, svg: `<rect x="12" y="8" width="64" height="48" style="${ST}"/><line x1="12" y1="24" x2="76" y2="24" stroke="#4a5468" stroke-width="1.2"/><line x1="12" y1="40" x2="76" y2="40" stroke="#4a5468" stroke-width="1.2"/><rect x="16" y="13" width="6" height="6" fill="#ffa726"/><rect x="16" y="29" width="6" height="6" fill="#ffa726"/><rect x="16" y="45" width="6" height="6" fill="#ffa726"/>` },
-    c4_prog1: { w: 72, h: 64, svg: `<path d="M16 6 H44 L58 20 V58 H16 Z" style="${ST}"/><path d="M44 6 V20 H58" stroke="#4a5468" stroke-width="1.2" fill="none"/><rect x="24" y="30" width="24" height="3" fill="#7c869c"/><rect x="24" y="38" width="24" height="3" fill="#7c869c"/><rect x="24" y="46" width="15" height="3" fill="#7c869c"/>` },
+    t0_wire: { w: 110, h: 66, svg: `<path d="M0 33 H44 V17 H66 V33 H110" stroke="#8b94a7" stroke-width="3" fill="none"/><rect x="40" y="13" width="8" height="8" fill="#ffa726"/><rect x="62" y="29" width="8" height="8" fill="#ffa726"/>`, pin: { in: { x: 0, y: 33 }, out: { x: 110, y: 33 } } },
+    t2_mul: glyph(88, `<circle cx="44" cy="33" r="20" style="${ST}"/><path d="M36 25 L52 41 M52 25 L36 41" stroke="#c6ccda" stroke-width="2.2"/>`, 24, 64),
+    s3_shift: glyph(110, [16, 44, 72].map(x => `<rect x="${x}" y="21" width="22" height="24" style="${ST}"/>`).join('') + `<path d="M38 33 H44 M66 33 H72" style="${LEAD}"/>`, 16, 94),
+    s3_cnt: glyph(88, `<circle cx="44" cy="33" r="22" style="${ST}"/><text x="44" y="39" style="${TXT}" font-size="16">+1</text>`, 22, 66),
+    s3_acc: glyph(110, `<rect x="18" y="8" width="74" height="50" style="${ST}"/><rect x="23" y="13" width="64" height="40" stroke="#4a5468" stroke-width="1" fill="none"/><text x="55" y="40" style="${TXT}" font-size="16">Σ</text>`, 18, 92),
+    s3_mem: glyph(110, `<rect x="18" y="6" width="74" height="54" style="${ST}"/><line x1="18" y1="24" x2="92" y2="24" stroke="#4a5468" stroke-width="1.2"/><line x1="18" y1="42" x2="92" y2="42" stroke="#4a5468" stroke-width="1.2"/><rect x="24" y="12" width="6" height="6" fill="#ffa726"/><rect x="24" y="30" width="6" height="6" fill="#ffa726"/><rect x="24" y="48" width="6" height="6" fill="#ffa726"/>`, 18, 92),
+    c4_pc: glyph(110, `<rect x="18" y="8" width="74" height="50" style="${ST}"/><text x="55" y="38" style="${TXT}" font-size="14">PC</text><path d="M30 50 H80" stroke="#ffa726" stroke-width="2"/>`, 18, 92),
   };
-  if (id === 'c4_prog2') return custom.c4_prog1;
+  const lv = LEVELS.find(l => l.id === id);
+  if (lv && lv.kind === 'program') return doc;
   if (custom[id]) return custom[id];
   const key = {
     t0_sti: 'STI', t0_min: 'TMIN', t0_max: 'TMAX', t0_thr: 'PTI',
@@ -47,8 +60,10 @@ function mapShape(id) {
   }[id];
   if (key && typeof Editor !== 'undefined') {
     const sh = Editor.shapeOf(key);
-    // 常量圆端子太小不适合当地图节点，实际映射表里没有常量
-    return { w: sh.w, h: sh.h, svg: sh.svg };
+    // 入钉取最靠近出钉高度的那根输入，导线最直
+    const out = sh.outA[0];
+    const inp = sh.inA.reduce((a, b) => (Math.abs(b.y - out.y) < Math.abs(a.y - out.y) ? b : a), sh.inA[0]);
+    return { w: sh.w, h: sh.h, svg: sh.svg, pin: { in: inp, out } };
   }
   return custom.t0_wire;
 }
@@ -59,8 +74,8 @@ function renderTree() {
   const order = LEVELS.map(l => l.id);
   // 布线台式路线图：章节自下而上排布，关卡蛇形走线，导线直角连接
   // 节点本体是元件符号（非矩形卡片），名牌在符号下方
-  const MW = 1160, TOP = 100, ROW_H = 178, NW = 150, NH = 118, PER = 5;
-  const COLX = c => 330 + c * 190;          // 5 列固定栅格，跨行的连线可以垂直对齐
+  const MW = 1200, TOP = 100, ROW_H = 178, NW = 150, NH = 118, PER = 5;
+  const COLX = c => 300 + c * 200;          // 5 列固定栅格；每行都从左往右，换行导线走行间通道
   const rowsSpec = [];                      // 自下而上：{ ci, lvs, first }
   CHAPTERS.forEach((ch, ci) => {
     const lvs = LEVELS.filter(l => l.ch === ch);
@@ -78,10 +93,8 @@ function renderTree() {
   svg.setAttribute('viewBox', `0 0 ${MW} ${H}`);
   canvas.appendChild(svg);
   const pos = {};
-  let col = 0;
   rowsSpec.forEach((row, r) => {
     const cy = H - TOP - r * ROW_H;
-    const dir = r % 2 === 0 ? 1 : -1;       // 蛇形：偶数行左→右，奇数行右→左
     if (row.first) {
       const cn = chName(row.ci).replace(/^[0-9]\s*·\s*/, '');
       const plate = document.createElement('div');
@@ -91,14 +104,9 @@ function renderTree() {
       plate.innerHTML = `<b>CHAPTER ${row.ci} · ${cn}</b><small>${t('chDesc')[row.ci] || ''}</small>`;
       canvas.appendChild(plate);
     }
-    // 本行从上一行结束的那一列开始往回折；放不下就贴边
-    const k = row.lvs.length;
-    let start = r === 0 ? 0 : col;
-    if (dir === 1) start = Math.min(start, PER - k); else start = Math.max(start, k - 1);
     row.lvs.forEach((lv, i) => {
-      col = start + dir * i;
-      const cx = COLX(col);
-      pos[lv.id] = { x: cx, y: cy };
+      const cx = COLX(i);
+      pos[lv.id] = { x: cx, y: cy, row: r };
       const idx = order.indexOf(lv.id);
       const unlocked = isUnlocked(idx);
       const done = S.done.includes(lv.id);
@@ -123,53 +131,42 @@ function renderTree() {
       canvas.appendChild(b);
     });
   });
-  // 关卡之间的连接导线（全局线性顺序）：
-  // 端点取自实测符号墨盒（getBBox），走线复用布线台 Editor.routeThrough，
-  // 焊点落在符号轮廓上，不再悬空。
-  // 注意：必须先把 canvas 挂进文档再量尺寸，离线元素的 rect 全是 0
+  // 关卡之间的连接导线（全局线性顺序）：上一关符号的出钉 → 下一关符号的入钉。
+  // 钉的屏幕位置 = 符号 svg 的实测位置 + 钉坐标 × 缩放；必须先把 canvas 挂进文档再量。
+  // 同行：出钉右侧拐一次直角接入钉；换行：出钉 → 右侧短引 → 行间通道 → 下一行首个元件左侧 → 入钉。
   tree.appendChild(canvas);
-  const inkOf = (id) => {
+  const cr = canvas.getBoundingClientRect();
+  const pinOf = (id, which) => {
     const svgEl = canvas.querySelector(`[data-lv="${id}"] .mshape svg`);
-    const cr = canvas.getBoundingClientRect();
     const r = svgEl.getBoundingClientRect();
-    let bb = null;
-    try { bb = svgEl.getBBox(); } catch { bb = null; }
-    if (!bb) return { l: r.left - cr.left, t: r.top - cr.top, r: r.right - cr.left, b: r.bottom - cr.top };
-    const vb = svgEl.viewBox.baseVal;
-    const sx = r.width / vb.width, sy = r.height / vb.height;
-    return {
-      l: r.left - cr.left + bb.x * sx, t: r.top - cr.top + bb.y * sy,
-      r: r.left - cr.left + (bb.x + bb.width) * sx, b: r.top - cr.top + (bb.y + bb.height) * sy,
-    };
+    const sh = mapShape(id), k = r.width / sh.w;
+    const p = sh.pin[which];
+    return { x: Math.round(r.left - cr.left + p.x * k), y: Math.round(r.top - cr.top + p.y * k) };
   };
-  const edge = (box, side) => side === 'l' ? { x: box.l, y: (box.t + box.b) / 2 }
-    : side === 'r' ? { x: box.r, y: (box.t + box.b) / 2 }
-    : side === 't' ? { x: (box.l + box.r) / 2, y: box.t }
-    : { x: (box.l + box.r) / 2, y: box.b };
   for (let i = 0; i < order.length - 1; i++) {
     const A = pos[order[i]], B = pos[order[i + 1]];
     const bDone = S.done.includes(order[i + 1]);
     const bUn = isUnlocked(i + 1);
-    const boxA = inkOf(order[i]), boxB = inkOf(order[i + 1]);
-    let sa, sb;
-    if (Math.abs(A.y - B.y) < 1) {
-      if (B.x >= A.x) { sa = 'r'; sb = 'l'; }
-      else { sa = 'l'; sb = 'r'; }
-    } else if (B.y < A.y) { sa = 't'; sb = 'b'; }
-    else { sa = 'b'; sb = 't'; }
-    const p = edge(boxA, sa), q = edge(boxB, sb);
+    const p = pinOf(order[i], 'out'), q = pinOf(order[i + 1], 'in');
+    let pts;
+    if (A.row === B.row) {
+      const mx = Math.round((p.x + q.x) / 2);
+      pts = Math.abs(p.y - q.y) < 1 ? [p, q] : [p, { x: mx, y: p.y }, { x: mx, y: q.y }, q];
+    } else {
+      const chY = Math.round((A.y + B.y) / 2) + 2;     // 行间通道（两行之间正中）
+      const ex = p.x + 16, ix = q.x - 16;
+      pts = [p, { x: ex, y: p.y }, { x: ex, y: chY }, { x: ix, y: chY }, { x: ix, y: q.y }, q];
+    }
+    const cls = bDone ? 'ok' : bUn ? 'live' : 'dim';
     const path = document.createElementNS(NS, 'path');
-    const my = (p.y + q.y) / 2;
-    path.setAttribute('d', Math.abs(p.x - q.x) < 1 || Math.abs(p.y - q.y) < 1
-      ? Editor.routeThrough([p, q])
-      : Editor.routeThrough([p, { x: p.x, y: my }, { x: q.x, y: my }, q]));
-    path.setAttribute('class', 'mwire ' + (bDone ? 'ok' : bUn ? 'live' : 'dim'));
+    path.setAttribute('d', Editor.routeThrough(pts));
+    path.setAttribute('class', 'mwire ' + cls);
     svg.appendChild(path);
     for (const pt of [p, q]) {
       const j = document.createElementNS(NS, 'rect');
       j.setAttribute('x', pt.x - 4); j.setAttribute('y', pt.y - 4);
       j.setAttribute('width', 8); j.setAttribute('height', 8);
-      j.setAttribute('class', 'mjunc ' + (bDone ? 'ok' : bUn ? 'live' : 'dim'));
+      j.setAttribute('class', 'mjunc ' + cls);
       svg.appendChild(j);
     }
   }
