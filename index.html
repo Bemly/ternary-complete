@@ -17,7 +17,7 @@
     <button id="btn-map" class="tb-btn"><svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="square" stroke-linejoin="miter" aria-hidden="true"><path d="M1.5 4 L6 2 L10 4 L14.5 2 V12 L10 14 L6 12 L1.5 14 Z M6 2 V12 M10 4 V14"/></svg> <span data-i18n="navMap">路线图</span></button>
     <div class="brand-mini">
       <span id="scale-mini"><i class="pm l">−</i><i class="pv">◆</i><i class="pm r">+</i></span>
-      <b>三进制完备 <span class="en">TERNARY COMPLETE</span></b>
+      <b>三进制完备</b>
     </div>
   </div>
   <div id="crumb" class="tb-crumb"><span id="level-kicker">路线图</span><span id="level-name-top">选择一个任务进入布线台</span></div>
@@ -27,7 +27,6 @@
     <div class="stat"><b id="stat-progress">0/25</b><span data-i18n="done">已完成</span></div>
     <div class="stat"><b id="stat-gates">0</b><span data-i18n="gatesW">门数</span></div>
     <button id="btn-converter" class="ghost-btn">⇄ <span data-i18n="converter">换算</span></button>
-    <button id="btn-lang" class="ghost-btn" title="Switch language">EN</button>
     <button id="btn-reset" class="ghost-btn danger"><span data-i18n="reset">重置</span></button>
   </div>
 </header>
@@ -102,7 +101,7 @@
     <div id="cpu-panel" hidden>
       <div class="cpu-cols">
         <div>
-          <div class="panel-title"><span data-i18n="cpuAsm">TRIT-3 汇编器</span> <span class="sub" data-i18n="cpuSub">3-trit 字 · −13…+13</span></div>
+          <div class="panel-title"><span data-i18n="cpuAsm">TRIT-3 汇编器</span> <span class="sub" data-i18n="cpuSub">3 位字 · −13…+13</span></div>
           <div class="code-wrap"><pre id="cpu-gutter" aria-hidden="true"></pre><textarea id="cpu-code" spellcheck="false" wrap="off"></textarea></div>
           <div class="cpu-btns">
             <button id="btn-cpu-run" class="run-btn"><span data-i18n="cpuRun">运行程序</span></button>
@@ -220,7 +219,7 @@ HLT   标签写为  L:  注释用 #</pre>
       <button id="btn-map2" class="act-btn"><span data-i18n="winMap">路线图</span></button>
       <button id="btn-share" class="act-btn" hidden><span data-i18n="shareBtn">分享</span></button>
       <button id="btn-win-qr" class="act-btn" hidden><span data-i18n="qrBtn">扫码到手机</span></button>
-      <button id="btn-next" class="run-btn"><span data-i18n="winNext">下一关 →</span></button>
+      <button id="btn-下一态" class="run-btn"><span data-i18n="winNext">下一关 →</span></button>
     </div>
   </div>
 </div>
@@ -228,7 +227,6 @@ HLT   标签写为  L:  注释用 #</pre>
 
 <script src="ternary.js"></script>
 <script src="levels.js"></script>
-<script src="levels_en.js"></script>
 <script src="solutions.js"></script>
 <script src="cpu.js"></script>
 <script src="icons.js"></script>

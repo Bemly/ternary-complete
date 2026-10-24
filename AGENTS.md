@@ -13,12 +13,10 @@
 - `cpu.js` ：TRIT-3 CPU（3-trit 字，R0-R3，M0-M8）
 - `app.js` ：路线图/布线台视图切换、验证台、CPU 面板、存档（`localStorage`）
 - `icons.js` ：内联 SVG 图标库 `ICONS`（全项目唯一图标来源，禁 emoji 用它代替）
-- `i18n.js` ：界面语言字典 `I18N`（中英双份）+ `t()` 取词 + `setLang()` 切换（顶栏语言按钮，`localStorage` 记忆）
-- `levels_en.js` ：全部关卡英文覆写 `LEVEL_EN` + 章节名 `CHAPTERS_EN` + 元件英文名 `NAME_EN`/`DESC_EN`
-  （中文原文留在 `levels.js`，英文运行时覆写，用 `LText()`/`compName()`/`compDesc()` 取词）
+- `i18n.js` ：界面文案字典 `I18N.zh` + `t()` 取词（只有中文，不做多语言）
 - `solutions.js` ：全关参考解（电路关规格 `REF_SPEC` + `specToCircuit()` 物化；汇编关程序 `REF_PROG`；
   `loadRefSolution()` 载入）。工具条「参考解」按钮载入后自动跑测试。汇编关的 `starter` 只能是骨架，不得直接通过测试。
-  `scripts/check_solutions.js` 用同一份规格做全关 headless 回归（含元件箱合规、starter 不得是答案、中英用例一致），
+  `scripts/check_solutions.js` 用同一份规格做全关 headless 回归（含元件箱合规、starter 不得是答案），
   元件语义或关卡改动后必跑
 - `bili.js` ：B站 Toy 平台接入层 `Bili`（云存档、排行榜、分享 / 二维码接力、账号资料、App 容器）。
   SDK 由 `index.html` 头部按官方方式引入；不在 Toy 环境、SDK 没加载、未登录时一律静默降级为纯本地，
@@ -54,7 +52,7 @@ import re
 dash = chr(0x2014)
 pat = re.compile('[\U0001F300-\U0001FAFF\u2600-\u27BF\u2B00-\u2BFF\u23E9-\u23FA\u23F5\u23F8\u25B6\u25C0]')
 allow = {0x2713, 0x2717}
-files = ['index.html','app.js','editor.js','levels.js','levels_en.js','cpu.js','ternary.js','icons.js','i18n.js','styles.css','AGENTS.md','README.md','README.zh.md']
+files = ['index.html','app.js','editor.js','levels.js','cpu.js','ternary.js','icons.js','i18n.js','styles.css','AGENTS.md','README.md','README.zh.md']
 bad_dash = [(f, i) for f in files for i, l in enumerate(open(f).read().split(chr(10)), 1) if dash in l]
 bad_emoji = [(f, i, hex(ord(c))) for f in files for i, l in enumerate(open(f).read().split(chr(10)), 1) for c in set(pat.findall(l)) if ord(c) not in allow]
 print('dash:', bad_dash if bad_dash else 'none')
@@ -86,11 +84,9 @@ console.log('halfAdd(-1,-1)='+JSON.stringify(halfAdd(-1,-1)));
 \`;eval(src);"
 node -e "
 const fs=require('fs');
-let src=fs.readFileSync('ternary.js','utf8')+'\n'+fs.readFileSync('levels.js','utf8')+'\n'+fs.readFileSync('levels_en.js','utf8')+'\n'+fs.readFileSync('i18n.js','utf8');
+let src=fs.readFileSync('ternary.js','utf8')+'\n'+fs.readFileSync('levels.js','utf8')+'\n'+fs.readFileSync('i18n.js','utf8');
 src+=\`
-const zk=Object.keys(I18N.zh).sort(), ek=Object.keys(I18N.en).sort();
-console.log('i18n parity:', JSON.stringify(zk)===JSON.stringify(ek)?'OK':'DIFF '+zk.filter(k=>!ek.includes(k))+' / '+ek.filter(k=>!zk.includes(k)));
-console.log('EN levels:', Object.keys(LEVEL_EN).length+'/'+LEVELS.length);
+console.log('i18n keys:', Object.keys(I18N.zh).length, ' levels:', LEVELS.length);
 \`;eval(src);"
 ```
 
@@ -142,8 +138,7 @@ console.log('EN levels:', Object.keys(LEVEL_EN).length+'/'+LEVELS.length);
   （任何大小写、空格、连写形式皆禁；自有品牌 `Ternary Complete` 除外）。
   相关概念用“完备”“经典做法”等中性词改写。
   每次提交由 pre-commit 自动跑 `scripts/check_terms.py` 拦截，脚本自身用转义写法，不得含被检词字面量。
-- **i18n**：面向玩家的文案禁止硬编码中文。UI 铬字符串进 `i18n.js`（中英双份）；
-  关卡文案中文进 `levels.js`，英文进 `levels_en.js`；元件名经 `compName()` 取词。
-  新增文案必须同时给中英两份（`node` 校验字典键一致，见回归命令）。
+- **文案**：只有中文（审核要求，不再提供英文版）。面向玩家的 UI 字符串进 `i18n.js`，关卡文案进 `levels.js`，
+  元件名经 `compName()` 取词；正文里不要夹英文单词，元件代号与汇编指令除外。
 - 提交前加检：破折号扫描（见常用命令）为空，
   且 emoji 扫描（见常用命令）无新增。

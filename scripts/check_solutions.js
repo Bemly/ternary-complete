@@ -6,7 +6,7 @@ const path = require('path');
 const root = path.join(__dirname, '..');
 const read = f => fs.readFileSync(path.join(root, f), 'utf8');
 
-let src = ['ternary.js', 'levels.js', 'levels_en.js', 'cpu.js', 'editor.js', 'solutions.js']
+let src = ['ternary.js', 'levels.js', 'i18n.js', 'cpu.js', 'editor.js', 'solutions.js']
   .map(read).join('\n');
 src += `
 let fails = 0;
@@ -49,10 +49,8 @@ for (const lv of LEVELS.filter(l => l.kind === 'program')) {
   const code = REF_PROG[lv.id];
   if (!code) { console.log('MISS PROG ' + lv.id); fails++; continue; }
   const ts = lv.progTests();
-  const tsEn = (LEVEL_EN[lv.id] && LEVEL_EN[lv.id].progTests) ? LEVEL_EN[lv.id].progTests() : ts;
-  if (JSON.stringify(ts) !== JSON.stringify(tsEn)) { console.log('   progTests 中英不一致 ' + lv.id); fails++; }
-  // starter 只能是骨架：中英两份都不得直接通过全部测试
-  for (const st of [lv.starter, LEVEL_EN[lv.id] && LEVEL_EN[lv.id].starter].filter(Boolean)) {
+  // starter 只能是骨架，不得直接通过全部测试
+  for (const st of [lv.starter].filter(Boolean)) {
     const ok = ts.every(tt => { const r = CPU.run(st, tt.in); return r.ok && JSON.stringify(r.out) === JSON.stringify(tt.want); });
     if (ok) { console.log('   starter 已是答案 ' + lv.id); fails++; }
   }

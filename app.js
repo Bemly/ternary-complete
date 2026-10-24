@@ -32,7 +32,6 @@ function ask(msg) {
 
 // 关卡文案：英文模式且存在覆写则用英文
 function LText(lv, f) {
-  if (LANG === 'en' && LEVEL_EN[lv.id] && LEVEL_EN[lv.id][f] !== undefined) return LEVEL_EN[lv.id][f];
   return lv[f];
 }
 function chIndex(lv) { return Math.max(0, CHAPTERS.indexOf(lv.ch)); }
@@ -123,7 +122,7 @@ function renderTree() {
       plate.className = 'mplate';
       plate.style.left = '12px';
       plate.style.top = (cy - 48) + 'px';
-      plate.innerHTML = `<b>CHAPTER ${row.ci} · ${cn}</b><small>${t('chDesc')[row.ci] || ''}</small>`;
+      plate.innerHTML = `<b>第 ${row.ci} 章 · ${cn}</b><small>${t('chDesc')[row.ci] || ''}</small>`;
       canvas.appendChild(plate);
     }
     if (narrow && row.last) {
@@ -131,7 +130,7 @@ function renderTree() {
       plate.className = 'mplate wide';
       plate.style.left = '24px';
       plate.style.top = (cy - NH / 2 - 34) + 'px';
-      plate.innerHTML = `<b>CHAPTER ${row.ci} · ${cn}</b>`;
+      plate.innerHTML = `<b>第 ${row.ci} 章 · ${cn}</b>`;
       canvas.appendChild(plate);
     }
     row.lvs.forEach((lv, i) => {
@@ -279,9 +278,8 @@ function loadLevel(id) {
     const saved = S.circuits[id];
     if (saved) Editor.restore(saved);
   } else {
-    const en = (LANG === 'en' && LEVEL_EN[id] && LEVEL_EN[id].starter) ? LEVEL_EN[id].starter : null;
     const codeEl = $('cpu-code');
-    codeEl.value = S.code[id] || en || lv.starter || '';
+    codeEl.value = S.code[id] || lv.starter || '';
     cpuReset();
     renderCpuTestsPreview(lv);
   }
@@ -337,7 +335,6 @@ function showRowsSeq(lv, res) {
 }
 
 function progTestsOf(lv) {
-  if (LANG === 'en' && LEVEL_EN[lv.id] && LEVEL_EN[lv.id].progTests) return LEVEL_EN[lv.id].progTests();
   return lv.progTests();
 }
 
@@ -608,7 +605,6 @@ $('btn-reset').onclick = async () => {
   Bili.cloudSave(S);   // 云端也清空，否则下次打开会被合并回来
   showMap(); toast(t('resetDone'));
 };
-$('btn-lang').onclick = () => setLang(LANG === 'zh' ? 'en' : 'zh');
 
 window.addEventListener('beforeunload', saveCurrent);
 document.addEventListener('visibilitychange', () => { if (document.hidden) cloudSync(); });
@@ -767,7 +763,6 @@ async function bootPlatform() {
 // 启动：先停在独立路线图
 Editor.init();
 applyI18n();
-$('btn-lang').textContent = t('langBtn');
 renderTree();
 showMap();
 // 深链 ?lv=<id>：分享 / 扫码进来直接打开那一关（未解锁则停在路线图）

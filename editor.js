@@ -414,8 +414,8 @@ const Editor = {
   },
 
   defOf(node) {
-    if (node.type === 'INPUT') return { name: node.ioName || t('inLbl'), en: 'IN', inputs: [], outputs: ['Q'] };
-    if (node.type === 'OUTPUT') return { name: node.ioName || t('outLbl'), en: 'OUT', inputs: ['A'], outputs: [] };
+    if (node.type === 'INPUT') return { name: node.ioName || t('inLbl'), en: '', inputs: [], outputs: ['Q'] };
+    if (node.type === 'OUTPUT') return { name: node.ioName || t('outLbl'), en: '', inputs: ['A'], outputs: [] };
     return COMP_DEFS[node.type];
   },
 
@@ -728,8 +728,8 @@ const Editor = {
   sampleTimeline() {
     if (!this.circuit || !this.level || this.level.kind !== 'circuit') return;
     const { vals } = this.evaluate();
-    const ins = this.circuit.nodes.filter(n => n.type === 'INPUT').map(n => [n.ioName || 'IN', n.val]);
-    const outs = this.circuit.nodes.filter(n => n.type === 'OUTPUT').map(n => [n.ioName || 'OUT', vals[n.nid]['A']]);
+    const ins = this.circuit.nodes.filter(n => n.type === 'INPUT').map(n => [n.ioName || t('inLbl'), n.val]);
+    const outs = this.circuit.nodes.filter(n => n.type === 'OUTPUT').map(n => [n.ioName || t('outLbl'), vals[n.nid]['A']]);
     const regs = this.circuit.nodes
       .filter(n => n.type === 'DFF' || n.type === 'REG1')
       .map(n => [(COMP_DEFS[n.type].en + '#' + n.nid), (n.state ?? 0)]);
@@ -747,8 +747,8 @@ const Editor = {
     const F = this.tlFrames;
     if (!F.length) { box.innerHTML = `<div class="tl-empty">${t('tlEmpty')}</div>`; if (info) info.textContent = ''; return; }
     const sigs = [];
-    F[0].ins.forEach(([nm]) => sigs.push({ k: 'i:' + nm, label: 'IN ' + nm }));
-    F[0].outs.forEach(([nm]) => sigs.push({ k: 'o:' + nm, label: 'OUT ' + nm }));
+    F[0].ins.forEach(([nm]) => sigs.push({ k: 'i:' + nm, label: t('inLbl') + ' ' + nm }));
+    F[0].outs.forEach(([nm]) => sigs.push({ k: 'o:' + nm, label: t('outLbl') + ' ' + nm }));
     F[0].regs.forEach(([nm]) => sigs.push({ k: 'r:' + nm, label: nm }));
     const step = 22, rowH = 26, labW = 96;
     const W = labW + F.length * step + 26;
@@ -805,9 +805,9 @@ const Editor = {
     const sym = v => (v == null ? '·' : v === -1 ? '−' : v === 0 ? '0' : '+');
     const cls = v => (v === -1 ? 'v-1' : v === 0 ? 'v0' : v === 1 ? 'v1' : '');
     box.innerHTML =
-      `<span class="io-group"><span class="glab">IN</span>` +
+      `<span class="io-group"><span class="glab">${t('inLbl')}</span>` +
       ins.map((n, i) => `<span class="io-chip in ${cls(n.val)}" data-io="${i}" title="${t('ioToggle')} ${n.ioName}">${n.ioName}=${sym(n.val)}</span>`).join('') + `</span>` +
-      `<span class="io-group"><span class="glab">OUT</span>` +
+      `<span class="io-group"><span class="glab">${t('outLbl')}</span>` +
       outs.map(n => { const v = vals[n.nid]['A']; return `<span class="io-chip ${cls(v)}">${n.ioName}=${sym(v)}</span>`; }).join('') + `</span>`;
   },
 
@@ -1006,7 +1006,7 @@ const Editor = {
       el.className = 'node io' + (isIn ? ' io-in clickable' : ' io-out');
       el.style.width = IO_W + 'px'; el.style.height = IO_H + 'px';
       el.title = isIn ? t('useIn') : t('useOut');
-      el.innerHTML = `<span class="ioname">${n.ioName}</span><span class="iokind">${isIn ? 'IN' : 'OUT'}</span><span class="val">…</span>`;
+      el.innerHTML = `<span class="ioname">${n.ioName}</span><span class="iokind">${isIn ? t('inLbl') : t('outLbl')}</span><span class="val">…</span>`;
       for (const [p, a] of Object.entries(isIn ? g.outs : g.ins)) el.appendChild(this.pinEl(n, p, isIn ? 'out' : 'in', a));
     } else {
       // 门符号：浮动名牌 + 值 + SVG 符号体 + 边缘钉

@@ -2,7 +2,7 @@
 
 用**平衡三进制**（−1 / 0 / +1）从零重建计算机的网页闯关游戏：
 从一个 TNAND 门出发，经阈值门、MUX、加法器、寄存器、内存、ALU，
-最终在 TRIT-3 CPU 上写汇编。共 25 关，中英双语。
+最终在 TRIT-3 CPU 上写汇编。共 25 关。
 
 English version: [README.md](README.md).
 
@@ -78,8 +78,7 @@ python3 -m http.server 8000
 - `styles.css` ：全站样式（UI 铬零圆角，标准逻辑符号按 ANSI 绘制）
 - `ternary.js` ：三值逻辑核心，十进制与平衡三进制互转
 - `levels.js` ：元件定义（`COMP_DEFS`）+ 25 关（`LEVELS`，中文）
-- `levels_en.js` ：关卡/章节/元件名的英文覆写
-- `i18n.js` ：界面语言字典（中英双份）、`t()` 取词、语言切换
+- `i18n.js` ：界面文案字典、`t()` 取词
 - `icons.js` ：内联 SVG 图标库（全项目唯一图标来源，不用 emoji）
 - `editor.js` ：电路编辑器 + 仿真器（求值/滴答/测试/序列化/走线器）
 - `solutions.js` ：全部关卡的已验证参考解（电路规格 + 汇编程序）
